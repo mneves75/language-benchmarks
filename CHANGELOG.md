@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.3] - 2025-12-19
+
+### Changed
+- Updated benchmark results after enabling maximum optimization flags (run params: `n=500000 runs=1000 warmup=5 seed=1`)
+- Rust: `RUSTFLAGS="-C target-cpu=native"`; avg/median/min/max change vs prior table: +0.19/+0.11/+0.05/+9.31 ms
+- C: `-O3 -ffast-math -march=native -fno-math-errno -fno-trapping-math`; avg/median/min/max change: -0.46/-0.45/-0.46/-1.23 ms
+- Zig: `-mcpu=native` (ReleaseFast retained); avg/median/min/max change: +0.11/+0.11/+0.04/-0.32 ms
+- Swift: `-Ounchecked -whole-module-optimization`; avg/median/min/max change: -4.81/-4.81/-4.64/-4.89 ms
+- TypeScript/Bun: no compiler flag change; avg/median/min/max change: +0.13/+0.12/+0.12/+0.81 ms
+- Thanks to Peter Steinberger (`https://x.com/steipete`) for the heads up about the compiler flags
+
 ## [1.2.2] - 2025-12-19
 
 ### Changed
