@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an Ornstein-Uhlenbeck (OU) process microbenchmark comparing performance across five languages: TypeScript/Bun, Rust, Zig, C, and Swift. All implementations use **identical algorithms** to ensure fair comparison.
+This is an Ornstein-Uhlenbeck (OU) process microbenchmark comparing performance across five languages: TypeScript (Bun runtime), Rust, Zig, C, and Swift. All implementations use **identical algorithms** to ensure fair comparison.
 
 **Based on:** [🦀 Scientific Computing Benchmark: Rust 🦀 vs Zig ⚡ vs The Father C 👴](https://rust-dd.com/post/crab-scientific-computing-benchmark-rust-crab-vs-zig-zap-vs-the-father-c-older_man)
 
@@ -25,7 +25,7 @@ This is an Ornstein-Uhlenbeck (OU) process microbenchmark comparing performance 
 
 ### Individual Languages
 
-**TypeScript/Bun:**
+**TypeScript (Bun runtime):**
 ```bash
 cd ts && bun run ou_bench.ts --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
@@ -37,7 +37,7 @@ cd rust && RUSTFLAGS="-C target-cpu=native" cargo run --release -- --n=500000 --
 
 **C:**
 ```bash
-cd c && cc -Ofast -march=native -fno-math-errno -fno-trapping-math -std=c11 ou_bench.c -lm -o ou_bench_c
+cd c && cc -O3 -ffast-math -march=native -fno-math-errno -fno-trapping-math -std=c11 ou_bench.c -lm -o ou_bench_c
 ./ou_bench_c --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 

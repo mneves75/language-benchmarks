@@ -15,7 +15,7 @@ echo "Building Rust..."
 ( cd rust && RUSTFLAGS="-C target-cpu=native" cargo build --release --quiet )
 
 echo "Building C..."
-( cd c && cc -Ofast -march=native -fno-math-errno -fno-trapping-math -std=c11 ou_bench.c -lm -o ou_bench_c )
+( cd c && cc -O3 -ffast-math -march=native -fno-math-errno -fno-trapping-math -std=c11 ou_bench.c -lm -o ou_bench_c )
 
 echo "Building Zig..."
 ( cd zig && zig build-exe ou_bench.zig -O ReleaseFast -mcpu=native -fstrip -femit-bin=ou_bench 2>/dev/null )

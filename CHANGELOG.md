@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.2] - 2025-12-19
+
+### Changed
+- Build scripts and docs now default to maximum optimization flags across Rust/C/Zig/Swift
+- C compile flags use `-O3 -ffast-math` to match clang guidance
+
 ## [1.2.1] - 2025-12-19
 
 ### Changed
@@ -17,7 +23,7 @@
   - `04-c-implementation.md`: C implementation walkthrough
   - `05-zig-implementation.md`: Zig implementation walkthrough
   - `06-rust-implementation.md`: Rust implementation walkthrough
-  - `07-typescript-bun.md`: TypeScript/Bun implementation walkthrough
+  - `07-typescript-bun.md`: TypeScript (Bun runtime) implementation walkthrough
   - `08-swift-implementation.md`: Swift implementation walkthrough
   - `09-benchmarking-methodology.md`: Benchmarking methodology and best practices
   - `10-exercises-projects.md`: Hands-on exercises and projects
@@ -50,7 +56,7 @@
 ## [1.0.0] - 2024-12-19
 
 ### Added
-- Initial release with unified OU benchmark implementations in C, Zig, Rust, and TypeScript/Bun
+- Initial release with unified OU benchmark implementations in C, Zig, Rust, and TypeScript (Bun runtime)
 - All implementations use identical algorithms (xorshift128 PRNG, Marsaglia polar normal sampler)
 - `run_all.sh` script with separate build and run phases
 - Median statistic in all implementations for robust comparison
