@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an Ornstein-Uhlenbeck (OU) process microbenchmark comparing performance across four languages: TypeScript/Bun, Rust, Zig, and C. All implementations use **identical algorithms** to ensure fair comparison:
+This is an Ornstein-Uhlenbeck (OU) process microbenchmark comparing performance across five languages: TypeScript/Bun, Rust, Zig, C, and Swift. All implementations use **identical algorithms** to ensure fair comparison:
 
 - **PRNG**: xorshift128 (u32) seeded via splitmix32
 - **Uniform distribution**: 53-bit double from two u32 draws
@@ -15,7 +15,7 @@ This is an Ornstein-Uhlenbeck (OU) process microbenchmark comparing performance 
 
 ### Run All Benchmarks
 ```bash
-./run_all.sh [n] [runs] [warmup] [seed]
+./run_all.sh [n] [runs] [warmup] [seed] [mode] [output]
 # Default: n=500000 runs=1000 warmup=5 seed=1
 ```
 
@@ -45,10 +45,17 @@ cd zig && zig build-exe ou_bench.zig -O ReleaseFast -fstrip -femit-bin=ou_bench
 ./ou_bench --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
+**Swift:**
+```bash
+cd swift && swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench_swift
+./ou_bench_swift --n=500000 --runs=1000 --warmup=5 --seed=1
+```
+
 ## Architecture
 
 Each implementation follows the same structure:
 1. **Argument parsing**: `--n`, `--runs`, `--warmup`, `--seed` flags
+   - Additional flags: `--mode=full|gn|ou` and `--output=text|json`
 2. **Buffer allocation**: `gn` (N-1 Gaussian increments) and `ou` (N trajectory points) allocated once
 3. **Warmup phase**: Runs the simulation `warmup` times outside the timed region
 4. **Timed runs**: Measures three stages per run:

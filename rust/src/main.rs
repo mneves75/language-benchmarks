@@ -106,6 +106,21 @@ struct Args {
     runs: usize,
     warmup: usize,
     seed: u32,
+    mode: Mode,
+    output: Output,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Mode {
+    Full,
+    Gn,
+    Ou,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Output {
+    Text,
+    Json,
 }
 
 fn parse_args() -> Args {
@@ -114,6 +129,8 @@ fn parse_args() -> Args {
         runs: 1000,
         warmup: 5,
         seed: 1,
+        mode: Mode::Full,
+        output: Output::Text,
     };
 
     for arg in env::args().skip(1) {
@@ -144,6 +161,21 @@ fn parse_args() -> Args {
                 let seed_u64: u64 = v.parse().expect("--seed must be an integer");
                 out.seed = (seed_u64 & 0xFFFF_FFFF) as u32;
             }
+            "mode" => {
+                out.mode = match v {
+                    "full" => Mode::Full,
+                    "gn" => Mode::Gn,
+                    "ou" => Mode::Ou,
+                    _ => panic!("--mode must be full|gn|ou"),
+                };
+            }
+            "output" => {
+                out.output = match v {
+                    "text" => Output::Text,
+                    "json" => Output::Json,
+                    _ => panic!("--output must be text|json"),
+                };
+            }
             _ => {}
         }
     }
@@ -169,25 +201,57 @@ fn main() {
     let mut gn = vec![0.0_f64; n - 1];
     let mut ou = vec![0.0_f64; n];
 
+    if let Mode::Ou = args.mode {
+        let mut rng_prefill = XorShift128::new(args.seed);
+        let mut norm_prefill = NormalPolar::new();
+        for i in 0..(n - 1) {
+            gn[i] = diff * norm_prefill.next_standard(&mut rng_prefill);
+        }
+    }
+
     // Warmup
     {
         let mut rng = XorShift128::new(args.seed);
         let mut norm = NormalPolar::new();
         for _ in 0..args.warmup {
-            for i in 0..(n - 1) {
-                gn[i] = diff * norm.next_standard(&mut rng);
-            }
-
-            let mut x = 0.0_f64;
-            ou[0] = x;
-            for i in 1..n {
-                x = a * x + b + gn[i - 1];
-                ou[i] = x;
-            }
-
             let mut s = 0.0_f64;
-            for v in &ou {
-                s += *v;
+            match args.mode {
+                Mode::Full => {
+                    for i in 0..(n - 1) {
+                        gn[i] = diff * norm.next_standard(&mut rng);
+                    }
+
+                    let mut x = 0.0_f64;
+                    ou[0] = x;
+                    for i in 1..n {
+                        x = a * x + b + gn[i - 1];
+                        ou[i] = x;
+                    }
+
+                    for v in &ou {
+                        s += *v;
+                    }
+                }
+                Mode::Gn => {
+                    for i in 0..(n - 1) {
+                        gn[i] = diff * norm.next_standard(&mut rng);
+                    }
+                    for v in &gn {
+                        s += *v;
+                    }
+                }
+                Mode::Ou => {
+                    let mut x = 0.0_f64;
+                    ou[0] = x;
+                    for i in 1..n {
+                        x = a * x + b + gn[i - 1];
+                        ou[i] = x;
+                    }
+
+                    for v in &ou {
+                        s += *v;
+                    }
+                }
             }
             if s == 123456789.0 {
                 eprintln!("impossible");
@@ -211,32 +275,77 @@ fn main() {
     let mut checksum = 0.0_f64;
 
     for _ in 0..args.runs {
-        let t0 = Instant::now();
+        let (gen, sim, chk, run);
+        match args.mode {
+            Mode::Full => {
+                let t0 = Instant::now();
+                for i in 0..(n - 1) {
+                    gn[i] = diff * norm.next_standard(&mut rng);
+                }
+                let t1 = Instant::now();
 
-        for i in 0..(n - 1) {
-            gn[i] = diff * norm.next_standard(&mut rng);
+                let mut x = 0.0_f64;
+                ou[0] = x;
+                for i in 1..n {
+                    x = a * x + b + gn[i - 1];
+                    ou[i] = x;
+                }
+                let t2 = Instant::now();
+
+                let mut s = 0.0_f64;
+                for v in &ou {
+                    s += *v;
+                }
+                checksum += s;
+                let t3 = Instant::now();
+
+                gen = t1.duration_since(t0).as_secs_f64();
+                sim = t2.duration_since(t1).as_secs_f64();
+                chk = t3.duration_since(t2).as_secs_f64();
+                run = t3.duration_since(t0).as_secs_f64();
+            }
+            Mode::Gn => {
+                let t0 = Instant::now();
+                for i in 0..(n - 1) {
+                    gn[i] = diff * norm.next_standard(&mut rng);
+                }
+                let t1 = Instant::now();
+
+                let mut s = 0.0_f64;
+                for v in &gn {
+                    s += *v;
+                }
+                checksum += s;
+                let t2 = Instant::now();
+
+                gen = t1.duration_since(t0).as_secs_f64();
+                sim = 0.0_f64;
+                chk = t2.duration_since(t1).as_secs_f64();
+                run = t2.duration_since(t0).as_secs_f64();
+            }
+            Mode::Ou => {
+                let t0 = Instant::now();
+                let mut x = 0.0_f64;
+                ou[0] = x;
+                for i in 1..n {
+                    x = a * x + b + gn[i - 1];
+                    ou[i] = x;
+                }
+                let t1 = Instant::now();
+
+                let mut s = 0.0_f64;
+                for v in &ou {
+                    s += *v;
+                }
+                checksum += s;
+                let t2 = Instant::now();
+
+                gen = 0.0_f64;
+                sim = t1.duration_since(t0).as_secs_f64();
+                chk = t2.duration_since(t1).as_secs_f64();
+                run = t2.duration_since(t0).as_secs_f64();
+            }
         }
-        let t1 = Instant::now();
-
-        let mut x = 0.0_f64;
-        ou[0] = x;
-        for i in 1..n {
-            x = a * x + b + gn[i - 1];
-            ou[i] = x;
-        }
-        let t2 = Instant::now();
-
-        let mut s = 0.0_f64;
-        for v in &ou {
-            s += *v;
-        }
-        checksum += s;
-        let t3 = Instant::now();
-
-        let gen = t1.duration_since(t0).as_secs_f64();
-        let sim = t2.duration_since(t1).as_secs_f64();
-        let chk = t3.duration_since(t2).as_secs_f64();
-        let run = t3.duration_since(t0).as_secs_f64();
 
         total_gen_s += gen;
         total_sim_s += sim;
@@ -264,19 +373,48 @@ fn main() {
     let min_ms = min_s * 1000.0;
     let max_ms = max_s * 1000.0;
 
-    println!("== OU benchmark (Rust, unified algorithms) ==");
-    println!(
-        "n={} runs={} warmup={} seed={}",
-        args.n, args.runs, args.warmup, args.seed
-    );
-    println!("total_s={:.6}", total_s);
-    println!(
-        "avg_ms={:.6} median_ms={:.6} min_ms={:.6} max_ms={:.6}",
-        avg_ms, median_ms, min_ms, max_ms
-    );
-    println!(
-        "breakdown_s gen_normals={:.6} simulate={:.6} checksum={:.6}",
-        total_gen_s, total_sim_s, total_chk_s
-    );
-    println!("checksum={:.17}", checksum);
+    let mode_str = match args.mode {
+        Mode::Full => "full",
+        Mode::Gn => "gn",
+        Mode::Ou => "ou",
+    };
+
+    match args.output {
+        Output::Json => {
+            println!(
+                r#"{{"language":"Rust","mode":"{}","n":{},"runs":{},"warmup":{},"seed":{},"total_s":{:.6},"avg_ms":{:.6},"median_ms":{:.6},"min_ms":{:.6},"max_ms":{:.6},"breakdown_s":{{"gen_normals":{:.6},"simulate":{:.6},"checksum":{:.6}}},"checksum":{:.17}}}"#,
+                mode_str,
+                args.n,
+                args.runs,
+                args.warmup,
+                args.seed,
+                total_s,
+                avg_ms,
+                median_ms,
+                min_ms,
+                max_ms,
+                total_gen_s,
+                total_sim_s,
+                total_chk_s,
+                checksum
+            );
+        }
+        Output::Text => {
+            println!("== OU benchmark (Rust, unified algorithms) ==");
+            println!(
+                "n={} runs={} warmup={} seed={}",
+                args.n, args.runs, args.warmup, args.seed
+            );
+            println!("total_s={:.6}", total_s);
+            println!(
+                "avg_ms={:.6} median_ms={:.6} min_ms={:.6} max_ms={:.6}",
+                avg_ms, median_ms, min_ms, max_ms
+            );
+            println!(
+                "breakdown_s gen_normals={:.6} simulate={:.6} checksum={:.6}",
+                total_gen_s, total_sim_s, total_chk_s
+            );
+            println!("checksum={:.17}", checksum);
+        }
+    }
 }

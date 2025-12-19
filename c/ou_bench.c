@@ -110,7 +110,20 @@ typedef struct {
     size_t runs;
     size_t warmup;
     uint32_t seed;
+    int mode;
+    int output;
 } args_t;
+
+enum {
+    MODE_FULL = 0,
+    MODE_GN = 1,
+    MODE_OU = 2
+};
+
+enum {
+    OUTPUT_TEXT = 0,
+    OUTPUT_JSON = 1
+};
 
 static args_t parse_args(int argc, char **argv) {
     args_t a;
@@ -118,6 +131,8 @@ static args_t parse_args(int argc, char **argv) {
     a.runs = 1000;
     a.warmup = 5;
     a.seed = 1;
+    a.mode = MODE_FULL;
+    a.output = OUTPUT_TEXT;
 
     for (int i = 1; i < argc; i++) {
         const char *s = argv[i];
@@ -136,10 +151,27 @@ static args_t parse_args(int argc, char **argv) {
         } else if (strncmp(s, "--seed=", 7) == 0) {
             unsigned long long v = strtoull(s + 7, NULL, 10);
             a.seed = (uint32_t)(v & 0xFFFFFFFFu);
+        } else if (strncmp(s, "--mode=", 7) == 0) {
+            const char *v = s + 7;
+            if (strcmp(v, "full") == 0) a.mode = MODE_FULL;
+            else if (strcmp(v, "gn") == 0) a.mode = MODE_GN;
+            else if (strcmp(v, "ou") == 0) a.mode = MODE_OU;
+            else { fprintf(stderr, "--mode must be full|gn|ou\n"); exit(1); }
+        } else if (strncmp(s, "--output=", 9) == 0) {
+            const char *v = s + 9;
+            if (strcmp(v, "text") == 0) a.output = OUTPUT_TEXT;
+            else if (strcmp(v, "json") == 0) a.output = OUTPUT_JSON;
+            else { fprintf(stderr, "--output must be text|json\n"); exit(1); }
         }
     }
 
     return a;
+}
+
+static int cmp_double(const void *a, const void *b) {
+    const double da = *(const double*)a;
+    const double db = *(const double*)b;
+    return (da < db) ? -1 : (da > db) ? 1 : 0;
 }
 
 int main(int argc, char **argv) {
@@ -164,6 +196,15 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    if (args.mode == MODE_OU) {
+        xorshift128_t rng_prefill = xorshift128_new(args.seed);
+        normal_polar_t norm_prefill;
+        normal_polar_init(&norm_prefill);
+        for (size_t i = 0; i < n - 1; i++) {
+            gn[i] = diff * normal_polar_next(&norm_prefill, &rng_prefill);
+        }
+    }
+
     // Warmup
     {
         xorshift128_t rng = xorshift128_new(args.seed);
@@ -171,17 +212,32 @@ int main(int argc, char **argv) {
         normal_polar_init(&norm);
 
         for (size_t r = 0; r < args.warmup; r++) {
-            for (size_t i = 0; i < n - 1; i++) {
-                gn[i] = diff * normal_polar_next(&norm, &rng);
-            }
-            double x = 0.0;
-            ou[0] = x;
-            for (size_t i = 1; i < n; i++) {
-                x = a * x + b + gn[i - 1];
-                ou[i] = x;
-            }
             double s = 0.0;
-            for (size_t i = 0; i < n; i++) s += ou[i];
+            if (args.mode == MODE_FULL) {
+                for (size_t i = 0; i < n - 1; i++) {
+                    gn[i] = diff * normal_polar_next(&norm, &rng);
+                }
+                double x = 0.0;
+                ou[0] = x;
+                for (size_t i = 1; i < n; i++) {
+                    x = a * x + b + gn[i - 1];
+                    ou[i] = x;
+                }
+                for (size_t i = 0; i < n; i++) s += ou[i];
+            } else if (args.mode == MODE_GN) {
+                for (size_t i = 0; i < n - 1; i++) {
+                    gn[i] = diff * normal_polar_next(&norm, &rng);
+                }
+                for (size_t i = 0; i < n - 1; i++) s += gn[i];
+            } else {
+                double x = 0.0;
+                ou[0] = x;
+                for (size_t i = 1; i < n; i++) {
+                    x = a * x + b + gn[i - 1];
+                    ou[i] = x;
+                }
+                for (size_t i = 0; i < n; i++) s += ou[i];
+            }
             if (s == 123456789.0) printf("impossible\n");
         }
     }
@@ -207,30 +263,71 @@ int main(int argc, char **argv) {
     double checksum = 0.0;
 
     for (size_t r = 0; r < args.runs; r++) {
-        uint64_t t0 = now_ns();
+        double gen = 0.0;
+        double sim = 0.0;
+        double chk = 0.0;
+        double run = 0.0;
 
-        for (size_t i = 0; i < n - 1; i++) {
-            gn[i] = diff * normal_polar_next(&norm, &rng);
+        if (args.mode == MODE_FULL) {
+            uint64_t t0 = now_ns();
+            for (size_t i = 0; i < n - 1; i++) {
+                gn[i] = diff * normal_polar_next(&norm, &rng);
+            }
+            uint64_t t1 = now_ns();
+
+            double x = 0.0;
+            ou[0] = x;
+            for (size_t i = 1; i < n; i++) {
+                x = a * x + b + gn[i - 1];
+                ou[i] = x;
+            }
+            uint64_t t2 = now_ns();
+
+            double s = 0.0;
+            for (size_t i = 0; i < n; i++) s += ou[i];
+            checksum += s;
+            uint64_t t3 = now_ns();
+
+            gen = (double)(t1 - t0) * 1e-9;
+            sim = (double)(t2 - t1) * 1e-9;
+            chk = (double)(t3 - t2) * 1e-9;
+            run = (double)(t3 - t0) * 1e-9;
+        } else if (args.mode == MODE_GN) {
+            uint64_t t0 = now_ns();
+            for (size_t i = 0; i < n - 1; i++) {
+                gn[i] = diff * normal_polar_next(&norm, &rng);
+            }
+            uint64_t t1 = now_ns();
+
+            double s = 0.0;
+            for (size_t i = 0; i < n - 1; i++) s += gn[i];
+            checksum += s;
+            uint64_t t2 = now_ns();
+
+            gen = (double)(t1 - t0) * 1e-9;
+            sim = 0.0;
+            chk = (double)(t2 - t1) * 1e-9;
+            run = (double)(t2 - t0) * 1e-9;
+        } else {
+            uint64_t t0 = now_ns();
+            double x = 0.0;
+            ou[0] = x;
+            for (size_t i = 1; i < n; i++) {
+                x = a * x + b + gn[i - 1];
+                ou[i] = x;
+            }
+            uint64_t t1 = now_ns();
+
+            double s = 0.0;
+            for (size_t i = 0; i < n; i++) s += ou[i];
+            checksum += s;
+            uint64_t t2 = now_ns();
+
+            gen = 0.0;
+            sim = (double)(t1 - t0) * 1e-9;
+            chk = (double)(t2 - t1) * 1e-9;
+            run = (double)(t2 - t0) * 1e-9;
         }
-        uint64_t t1 = now_ns();
-
-        double x = 0.0;
-        ou[0] = x;
-        for (size_t i = 1; i < n; i++) {
-            x = a * x + b + gn[i - 1];
-            ou[i] = x;
-        }
-        uint64_t t2 = now_ns();
-
-        double s = 0.0;
-        for (size_t i = 0; i < n; i++) s += ou[i];
-        checksum += s;
-        uint64_t t3 = now_ns();
-
-        double gen = (double)(t1 - t0) * 1e-9;
-        double sim = (double)(t2 - t1) * 1e-9;
-        double chk = (double)(t3 - t2) * 1e-9;
-        double run = (double)(t3 - t0) * 1e-9;
 
         total_gen_s += gen;
         total_sim_s += sim;
@@ -243,15 +340,7 @@ int main(int argc, char **argv) {
     }
 
     // Sort run_times for median
-    for (size_t i = 0; i < args.runs - 1; i++) {
-        for (size_t j = i + 1; j < args.runs; j++) {
-            if (run_times[j] < run_times[i]) {
-                double tmp = run_times[i];
-                run_times[i] = run_times[j];
-                run_times[j] = tmp;
-            }
-        }
-    }
+    qsort(run_times, args.runs, sizeof(double), cmp_double);
     double median_s = (args.runs % 2 == 1)
         ? run_times[args.runs / 2]
         : (run_times[args.runs / 2 - 1] + run_times[args.runs / 2]) / 2.0;
@@ -261,12 +350,23 @@ int main(int argc, char **argv) {
     double min_ms = min_s * 1000.0;
     double max_ms = max_s * 1000.0;
 
-    printf("== OU benchmark (C, unified algorithms) ==\n");
-    printf("n=%zu runs=%zu warmup=%zu seed=%u\n", args.n, args.runs, args.warmup, args.seed);
-    printf("total_s=%.6f\n", total_s);
-    printf("avg_ms=%.6f median_ms=%.6f min_ms=%.6f max_ms=%.6f\n", avg_ms, median_ms, min_ms, max_ms);
-    printf("breakdown_s gen_normals=%.6f simulate=%.6f checksum=%.6f\n", total_gen_s, total_sim_s, total_chk_s);
-    printf("checksum=%.17g\n", checksum);
+    const char *mode_str = (args.mode == MODE_FULL) ? "full" : (args.mode == MODE_GN) ? "gn" : "ou";
+
+    if (args.output == OUTPUT_JSON) {
+        printf(
+            "{\"language\":\"C\",\"mode\":\"%s\",\"n\":%zu,\"runs\":%zu,\"warmup\":%zu,\"seed\":%u,\"total_s\":%.6f,\"avg_ms\":%.6f,\"median_ms\":%.6f,\"min_ms\":%.6f,\"max_ms\":%.6f,\"breakdown_s\":{\"gen_normals\":%.6f,\"simulate\":%.6f,\"checksum\":%.6f},\"checksum\":%.17g}\n",
+            mode_str, args.n, args.runs, args.warmup, args.seed,
+            total_s, avg_ms, median_ms, min_ms, max_ms,
+            total_gen_s, total_sim_s, total_chk_s, checksum
+        );
+    } else {
+        printf("== OU benchmark (C, unified algorithms) ==\n");
+        printf("n=%zu runs=%zu warmup=%zu seed=%u\n", args.n, args.runs, args.warmup, args.seed);
+        printf("total_s=%.6f\n", total_s);
+        printf("avg_ms=%.6f median_ms=%.6f min_ms=%.6f max_ms=%.6f\n", avg_ms, median_ms, min_ms, max_ms);
+        printf("breakdown_s gen_normals=%.6f simulate=%.6f checksum=%.6f\n", total_gen_s, total_sim_s, total_chk_s);
+        printf("checksum=%.17g\n", checksum);
+    }
 
     free(gn);
     free(ou);

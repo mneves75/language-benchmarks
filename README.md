@@ -1,6 +1,6 @@
 # OU Benchmark
 
-A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, **Zig**, **Rust**, and **TypeScript/Bun**.
+A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, **Zig**, **Rust**, **Swift**, and **TypeScript/Bun**.
 
 ## Results
 
@@ -8,10 +8,11 @@ A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, 
 
 | Language | Avg (ms) | Median (ms) | Min (ms) | Max (ms) |
 |----------|----------|-------------|----------|----------|
-| **C**    | 3.76     | 3.76        | 3.48     | 5.16     |
-| **Zig**  | 3.92     | 3.91        | 3.63     | 4.89     |
-| **Rust** | 3.92     | 3.91        | 3.62     | 5.08     |
-| **Bun**  | 6.50     | 6.48        | 6.05     | 15.58    |
+| **C**    | 3.71     | 3.70        | 3.44     | 5.08     |
+| **Zig**  | 3.82     | 3.82        | 3.57     | 5.08     |
+| **Rust** | 3.85     | 3.84        | 3.59     | 5.79     |
+| **Bun**  | 6.15     | 6.13        | 5.77     | 18.32    |
+| **Swift**| 9.25     | 9.25        | 8.82     | 9.95     |
 
 *Default parameters: n=500000, runs=1000, warmup=5, seed=1*
 
@@ -23,8 +24,8 @@ A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, 
 
 Or with custom parameters:
 ```bash
-./run_all.sh [n] [runs] [warmup] [seed]
-./run_all.sh 500000 1000 5 1
+./run_all.sh [n] [runs] [warmup] [seed] [mode] [output]
+./run_all.sh 500000 1000 5 1 full text
 ```
 
 ## What Makes This Fair
@@ -46,6 +47,10 @@ Each benchmark prints:
 - Checksum (for correctness verification)
 
 **Note:** Checksums may differ slightly across languages due to libm differences. This is expected.
+
+Additional flags (all languages):
+- `--mode=full|gn|ou` (default `full`)
+- `--output=text|json` (default `text`)
 
 ## Individual Language Commands
 
@@ -75,12 +80,23 @@ cd zig && zig build-exe ou_bench.zig -O ReleaseFast -fstrip -femit-bin=ou_bench
 ./ou_bench --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
+### Swift
+```bash
+cd swift && swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench_swift
+./ou_bench_swift --n=500000 --runs=1000 --warmup=5 --seed=1
+```
+
 ## Tips for Clean Comparisons
 
 - Run on AC power, close background apps
 - Compare **medians** rather than means (more robust to outliers)
 - Pin CPU frequency if possible (Linux: performance governor)
 - Run multiple times to verify consistency
+
+## Reproducibility
+
+- Use `DOCS/Run-Record-Template.md` to capture environment and toolchain details.
+- For diffing runs, capture JSON output and compare with `DOCS/scripts/compare_runs.sh`.
 
 ## Project Structure
 
@@ -90,5 +106,6 @@ cd zig && zig build-exe ou_bench.zig -O ReleaseFast -fstrip -femit-bin=ou_bench
 ├── ts/             # TypeScript/Bun implementation
 ├── rust/           # Rust implementation
 ├── zig/            # Zig implementation
-└── c/              # C implementation
+├── c/              # C implementation
+└── swift/          # Swift implementation
 ```

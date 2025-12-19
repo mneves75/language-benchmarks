@@ -5,6 +5,8 @@ N="${1:-500000}"
 RUNS="${2:-1000}"
 WARMUP="${3:-5}"
 SEED="${4:-1}"
+MODE="${5:-full}"
+OUTPUT="${6:-text}"
 
 echo "=== Building all benchmarks ==="
 echo
@@ -18,23 +20,32 @@ echo "Building C..."
 echo "Building Zig..."
 ( cd zig && zig build-exe ou_bench.zig -O ReleaseFast -fstrip -femit-bin=ou_bench 2>/dev/null )
 
+echo "Building Swift..."
+( cd swift && swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench_swift )
+
 echo
 echo "=== Running benchmarks ==="
 echo "n=$N runs=$RUNS warmup=$WARMUP seed=$SEED"
+if [[ "$MODE" != "full" || "$OUTPUT" != "text" ]]; then
+  echo "mode=$MODE output=$OUTPUT"
+fi
 echo
 
 echo "[TypeScript/Bun]"
-( cd ts && bun run ou_bench.ts --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" )
+( cd ts && bun run ou_bench.ts --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
 echo
 
 echo "[Rust]"
-( cd rust && ./target/release/ou_bench_unified --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" )
+( cd rust && ./target/release/ou_bench_unified --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
 echo
 
 echo "[C]"
-( cd c && ./ou_bench_c --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" )
+( cd c && ./ou_bench_c --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
 echo
 
 echo "[Zig]"
-( cd zig && ./ou_bench --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" )
+( cd zig && ./ou_bench --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
+
+echo "[Swift]"
+( cd swift && ./ou_bench_swift --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
 echo
