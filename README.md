@@ -95,8 +95,8 @@ cd swift && swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench_swif
 
 ## Reproducibility
 
-- Use `DOCS/Run-Record-Template.md` to capture environment and toolchain details.
-- For diffing runs, capture JSON output and compare with `DOCS/scripts/compare_runs.sh`.
+- Capture JSON output with `--output=json` for precise comparisons
+- Use `DOCS/scripts/compare_runs.sh` to diff multiple benchmark runs
 
 ## Project Structure
 
