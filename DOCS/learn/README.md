@@ -1,6 +1,6 @@
 # The Complete Multi-Language Programming Tutorial
 
-## A Deep Dive into C, Zig, Rust, TypeScript/Bun, and Swift Through Benchmarking
+## A Deep Dive into C, Zig, Rust, TypeScript (Bun runtime), and Swift Through Benchmarking
 
 **Welcome!** This comprehensive tutorial teaches modern programming through a real-world benchmark application that implements the Ornstein-Uhlenbeck stochastic process across five programming languages.
 
@@ -103,7 +103,7 @@ This tutorial follows the **Feynman Technique**:
 - Why Rust is only 4% slower than C
 - Exercises: Ownership practice, iterators
 
-**[Chapter 7: TypeScript/Bun - Dynamic Language Performance](07-typescript-bun.md)** (~5,500 words)
+**[Chapter 7: TypeScript (Bun runtime) - Dynamic Language Performance](07-typescript-bun.md)** (~5,500 words)
 - JavaScript's lack of native integers
 - The `| 0` trick for 32-bit integers
 - `Math.imul()` for correct multiplication
@@ -276,7 +276,7 @@ Use the **Table of Contents** to jump directly to:
 | C        | 3.70        | 1.00× | Procedural | Manual |
 | Zig      | 3.82        | 1.03× | Procedural | Debug mode |
 | Rust     | 3.84        | 1.04× | Multi-paradigm | Compile-time |
-| Bun      | 6.13        | 1.66× | Dynamic | None |
+| TypeScript (Bun runtime) | 6.13        | 1.66× | Dynamic | None |
 | Swift    | 9.25        | 2.50× | Multi-paradigm | Runtime (ARC) |
 
 ### Key Algorithms
@@ -326,7 +326,7 @@ cargo build --release
 ./target/release/ou_bench_unified --runs=1000
 ```
 
-### TypeScript/Bun
+### TypeScript (Bun runtime)
 
 ```bash
 cd ts
@@ -377,7 +377,7 @@ swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench
 - [ ] Use borrowing (`&` and `&mut`)
 - [ ] Handle errors with `Result`
 
-### Chapter 7: TypeScript/Bun
+### Chapter 7: TypeScript (Bun runtime)
 - [ ] Work around JavaScript's type limitations
 - [ ] Understand JIT compilation
 - [ ] Optimize for type stability

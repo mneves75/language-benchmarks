@@ -6,7 +6,7 @@ Imagine you and four friends are playing a card game. To make it fair, you need 
 
 This is exactly the problem we face when benchmarking different programming languages. Each language comes with its own random number generator (RNG), and they all use different algorithms. If we let each language use its own RNG, we wouldn't be comparing **language performance** - we'd be comparing **RNG algorithms**.
 
-**Solution**: Everyone uses the exact same shuffling technique. In our benchmark, all five languages (C, Zig, Rust, TypeScript/Bun, Swift) implement the **exact same random number generation algorithm**.
+**Solution**: Everyone uses the exact same shuffling technique. In our benchmark, all five languages (C, Zig, Rust, TypeScript (Bun runtime), Swift) implement the **exact same random number generation algorithm**.
 
 ## Why We Need Our Own RNG
 
@@ -189,7 +189,7 @@ impl SplitMix32 {
 
 **Key difference**: Rust uses `wrapping_add` and `wrapping_mul` to explicitly handle overflow. In C, u32 overflow wraps automatically. In Rust, we must be explicit for safety.
 
-**TypeScript/Bun** (`ts/ou_bench.ts:73-81`):
+**TypeScript (Bun runtime)** (`ts/ou_bench.ts:73-81`):
 ```typescript
 function splitmix32_next(state: { s: number }): number {
   state.s = (state.s + 0x9e3779b9) | 0;   // |0 forces 32-bit

@@ -12,14 +12,14 @@ Welcome! This tutorial will teach you everything you need to know about performa
 
 ## What Is This Project?
 
-This is a **multi-language benchmark** that compares how fast different programming languages can solve the same mathematical problem. Think of it like a race where five runners (C, Zig, Rust, TypeScript/Bun, and Swift) all run the exact same course using the exact same technique - we're testing who's naturally faster, not who has better running shoes or knows shortcuts.
+This is a **multi-language benchmark** that compares how fast different programming languages can solve the same mathematical problem. Think of it like a race where five runners (C, Zig, Rust, TypeScript (Bun runtime), and Swift) all run the exact same course using the exact same technique - we're testing who's naturally faster, not who has better running shoes or knows shortcuts.
 
 ### The Five Languages We Compare
 
 1. **C** - The grandfather of systems programming (created 1972)
 2. **Zig** - Modern systems language focused on simplicity (2016)
 3. **Rust** - Memory-safe systems language (2015)
-4. **TypeScript/Bun** - JavaScript with types, running on a fast runtime (2012/2022)
+4. **TypeScript (Bun runtime)** - JavaScript with types, running on a fast runtime (2012/2022)
 5. **Swift** - Apple's modern language (2014)
 
 ### The Problem We're Solving
@@ -58,7 +58,7 @@ Here's what we found (on MacBook Pro M4 Pro, 48GB RAM):
 | C        | 3.71 ms     | 3.70 ms     | Baseline: raw speed |
 | Zig      | 3.82 ms     | 3.82 ms     | Nearly C performance with safety |
 | Rust     | 3.85 ms     | 3.84 ms     | Safe as Zig, competitive speed |
-| Bun      | 6.15 ms     | 6.13 ms     | Dynamic language, 65% slower |
+| TypeScript (Bun runtime) | 6.15 ms     | 6.13 ms     | Dynamic language, 65% slower |
 | Swift    | 9.25 ms     | 9.25 ms     | Easiest to write, slowest here |
 
 **Key Insight**: C is fastest, but Zig and Rust are within 3-5% while offering memory safety. Bun (JavaScript) is surprisingly competitive for a dynamic language. Swift is slower for this specific workload.

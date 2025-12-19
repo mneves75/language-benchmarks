@@ -344,7 +344,7 @@ let elapsed = t0.elapsed().as_secs_f64();
 - Resolution: Platform-dependent (nanoseconds on Unix)
 - Monotonic: Yes
 
-**TypeScript/Bun** (`performance.now()`):
+**TypeScript (Bun runtime)** (`performance.now()`):
 ```typescript
 const t0 = performance.now();  // Milliseconds with microsecond precision
 // work
@@ -591,7 +591,7 @@ Our results:
 | C        | 3.70        | baseline | 1.00× |
 | Zig      | 3.82        | +3%  | 1.03× |
 | Rust     | 3.84        | +4%  | 1.04× |
-| Bun      | 6.13        | +66% | 1.66× |
+| TypeScript (Bun runtime) | 6.13        | +66% | 1.66× |
 | Swift    | 9.25        | +150% | 2.50× |
 
 **How to interpret**:

@@ -8,11 +8,11 @@ A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, 
 
 | Language | Avg (ms) | Median (ms) | Min (ms) | Max (ms) |
 |----------|----------|-------------|----------|----------|
-| **C**    | 3.71     | 3.70        | 3.44     | 5.08     |
-| **Zig**  | 3.82     | 3.82        | 3.57     | 5.08     |
-| **Rust** | 3.85     | 3.84        | 3.59     | 5.79     |
-| **TypeScript (Bun runtime)**  | 6.15     | 6.13        | 5.77     | 18.32    |
-| **Swift**| 9.25     | 9.25        | 8.82     | 9.95     |
+| **C**    | 3.25     | 3.25        | 2.98     | 3.85     |
+| **Zig**  | 3.93     | 3.93        | 3.61     | 4.76     |
+| **Rust** | 4.04     | 3.95        | 3.64     | 15.10    |
+| **TypeScript (Bun runtime)**  | 6.28     | 6.25        | 5.89     | 19.13    |
+| **Swift**| 4.44     | 4.44        | 4.18     | 5.06     |
 
 *Default parameters: n=500000, runs=1000, warmup=5, seed=1*
 
@@ -114,3 +114,12 @@ This benchmark is inspired by and extends the work from the original article:
 **[🦀 Scientific Computing Benchmark: Rust 🦀 vs Zig ⚡ vs The Father C 👴](https://rust-dd.com/post/crab-scientific-computing-benchmark-rust-crab-vs-zig-zap-vs-the-father-c-older_man)**
 
 The original benchmark compared C, Zig, and Rust for scientific computing using the Ornstein-Uhlenbeck process. This repository adds TypeScript (Bun runtime) and Swift implementations while maintaining the same fair methodology.
+
+## Language Resources
+
+- **C** - [ISO C Standard](https://www.iso.org/standard/74528.html)
+- **Zig** - [ziglang.org](https://ziglang.org/)
+- **Rust** - [rust-lang.org](https://www.rust-lang.org/)
+- **TypeScript** - [typescriptlang.org](https://www.typescriptlang.org/)
+- **Bun Runtime** - [bun.sh](https://bun.sh/)
+- **Swift** - [swift.org](https://www.swift.org/)

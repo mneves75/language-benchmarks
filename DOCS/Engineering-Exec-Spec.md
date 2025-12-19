@@ -1,7 +1,7 @@
 # Engineering Exec Spec: OU Benchmark Parity and Methodology Hardening
 
 ## Goal
-- Preserve algorithmic parity across C, Zig, Rust, Swift, and TypeScript/Bun while improving interpretability and repeatability.
+- Preserve algorithmic parity across C, Zig, Rust, Swift, and TypeScript (Bun runtime) while improving interpretability and repeatability.
 - Add narrowly scoped benchmark modes to separate RNG/normal generation cost from OU simulation cost.
 - Strengthen measurement practice without introducing heavy benchmarking frameworks.
 
