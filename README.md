@@ -125,11 +125,15 @@ cd swift && swiftc -Ounchecked -whole-module-optimization ou_bench.swift -o ou_b
 
 ## Acknowledgments
 
-This benchmark is inspired by and extends the work from the original article:
+This benchmark is inspired by and extends the work from the original article and implementation:
 
 **[🦀 Scientific Computing Benchmark: Rust 🦀 vs Zig ⚡ vs The Father C 👴](https://rust-dd.com/post/crab-scientific-computing-benchmark-rust-crab-vs-zig-zap-vs-the-father-c-older_man)**
 
-Thanks to **[Peter Steinberger](https://x.com/steipete)** for the heads up about the compiler flags.
+**Original Repository:** [rust-dd/probability-benchmark](https://github.com/rust-dd/probability-benchmark)
+
+Thanks to:
+- **[rust-dd](https://github.com/rust-dd)** for the original benchmark implementation and methodology
+- **[Peter Steinberger](https://x.com/steipete)** for the heads up about the compiler flags
 
 The original benchmark compared C, Zig, and Rust for scientific computing using the Ornstein-Uhlenbeck process. This repository adds TypeScript (Bun runtime) and Swift implementations while maintaining the same fair methodology.
 
