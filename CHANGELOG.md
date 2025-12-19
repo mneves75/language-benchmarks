@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.0] - 2025-12-19
+
+### Added
+- Educational tutorial series in `DOCS/learn/`:
+  - `00-introduction.md`: Comprehensive introduction to language benchmarking
+  - `01-ou-process.md`: Detailed explanation of the Ornstein-Uhlenbeck process
+
+### Removed
+- `DOCS/Old-benchmark-analysis.md`: Outdated benchmark analysis
+- `DOCS/Run-Record-Template.md`: Obsolete run record template
+
 ## [1.1.1] - 2025-12-19
 
 ### Added
