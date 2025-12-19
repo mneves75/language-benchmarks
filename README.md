@@ -109,3 +109,11 @@ cd swift && swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench_swif
 ├── c/              # C implementation
 └── swift/          # Swift implementation
 ```
+
+## Acknowledgments
+
+This benchmark is inspired by and extends the work from the original article:
+
+**[🦀 Scientific Computing Benchmark: Rust 🦀 vs Zig ⚡ vs The Father C 👴](https://rust-dd.com/post/crab-scientific-computing-benchmark-rust-crab-vs-zig-zap-vs-the-father-c-older_man)**
+
+The original benchmark compared C, Zig, and Rust for scientific computing using the Ornstein-Uhlenbeck process. This repository adds TypeScript/Bun and Swift implementations while maintaining the same fair methodology.

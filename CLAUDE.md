@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an Ornstein-Uhlenbeck (OU) process microbenchmark comparing performance across five languages: TypeScript/Bun, Rust, Zig, C, and Swift. All implementations use **identical algorithms** to ensure fair comparison:
+This is an Ornstein-Uhlenbeck (OU) process microbenchmark comparing performance across five languages: TypeScript/Bun, Rust, Zig, C, and Swift. All implementations use **identical algorithms** to ensure fair comparison.
+
+**Based on:** [🦀 Scientific Computing Benchmark: Rust 🦀 vs Zig ⚡ vs The Father C 👴](https://rust-dd.com/post/crab-scientific-computing-benchmark-rust-crab-vs-zig-zap-vs-the-father-c-older_man)
+
+**Algorithms:**
 
 - **PRNG**: xorshift128 (u32) seeded via splitmix32
 - **Uniform distribution**: 53-bit double from two u32 draws
