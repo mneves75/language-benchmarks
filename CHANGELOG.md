@@ -6,6 +6,16 @@
 - Educational tutorial series in `DOCS/learn/`:
   - `00-introduction.md`: Comprehensive introduction to language benchmarking
   - `01-ou-process.md`: Detailed explanation of the Ornstein-Uhlenbeck process
+  - `02-random-numbers.md`: Random number generation and xorshift128 PRNG
+  - `03-normal-distribution.md`: Normal distribution and Marsaglia polar method
+  - `04-c-implementation.md`: C implementation walkthrough
+  - `05-zig-implementation.md`: Zig implementation walkthrough
+  - `06-rust-implementation.md`: Rust implementation walkthrough
+  - `07-typescript-bun.md`: TypeScript/Bun implementation walkthrough
+  - `08-swift-implementation.md`: Swift implementation walkthrough
+  - `09-benchmarking-methodology.md`: Benchmarking methodology and best practices
+  - `10-exercises-projects.md`: Hands-on exercises and projects
+  - `README.md`: Tutorial series index and learning path
 
 ### Removed
 - `DOCS/Old-benchmark-analysis.md`: Outdated benchmark analysis
