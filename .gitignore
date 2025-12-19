@@ -5,3 +5,4 @@
 rust/target/
 c/ou_bench_c
 zig/ou_bench
+swift/ou_bench_swift
