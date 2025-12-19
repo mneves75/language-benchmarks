@@ -2,6 +2,22 @@
 
 A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, **Zig**, **Rust**, **Swift**, and **TypeScript (Bun runtime)**.
 
+## What is the OU Process?
+
+The **Ornstein-Uhlenbeck (OU) process** is a mathematical model that describes random motion with mean reversion—think of a particle bouncing around in water, constantly pulled back toward an equilibrium position. It's widely used in:
+
+- **Finance**: Modeling interest rates and volatility
+- **Physics**: Describing Brownian motion with friction
+- **Biology**: Population dynamics and neural activity
+
+**The Benchmark Algorithm:**
+
+1. **Generate Random Numbers**: Create N-1 Gaussian (normally-distributed) random values using the Marsaglia polar method
+2. **Simulate the Process**: Calculate N trajectory points using the Euler-Maruyama method with mean-reversion dynamics
+3. **Compute Checksum**: Sum all values to prevent compiler dead-store elimination
+
+This is a realistic scientific computing workload that tests: floating-point math, memory access patterns, and random number generation—making it ideal for comparing language performance in numerical computing.
+
 ## Results
 
 **Test Machine:** MacBook Pro, Apple M4 Pro (14 cores: 10P + 4E), 48 GB RAM
