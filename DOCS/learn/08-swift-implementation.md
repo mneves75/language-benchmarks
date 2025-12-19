@@ -513,7 +513,7 @@ Swift is a **modern, safe language** optimized for Apple platforms. In our bench
 
 ---
 
-**Previous**: [Chapter 7: TypeScript/Bun - Dynamic Language Performance](07-typescript-bun.md)
+**Previous**: [Chapter 7: TypeScript (Bun runtime) - Dynamic Language Performance](07-typescript-bun.md)
 **Next**: [Chapter 9: Benchmarking Methodology](09-benchmarking-methodology.md)
 
 ## References

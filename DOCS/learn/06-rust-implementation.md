@@ -591,7 +591,7 @@ Our benchmark shows Rust achieves **C-like performance with compile-time safety*
 ---
 
 **Previous**: [Chapter 5: Zig - Modern Systems Programming](05-zig-implementation.md)
-**Next**: [Chapter 7: TypeScript/Bun - Dynamic Language Performance](07-typescript-implementation.md)
+**Next**: [Chapter 7: TypeScript (Bun runtime) - Dynamic Language Performance](07-typescript-implementation.md)
 
 ## References
 

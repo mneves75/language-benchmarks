@@ -12,7 +12,7 @@
 
 - Run everything with shared parameters:
   - `./run_all.sh [n] [runs] [warmup] [seed] [mode] [output]`
-- TypeScript (Bun):
+- TypeScript (Bun runtime):
   - `cd ts && bun run ou_bench.ts --n=500000 --runs=1000 --warmup=5 --seed=1`
 - Rust:
   - `cd rust && cargo run --release -- --n=500000 --runs=1000 --warmup=5 --seed=1`

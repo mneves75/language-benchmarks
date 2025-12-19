@@ -1,4 +1,4 @@
-# Chapter 7: TypeScript/Bun - Dynamic Language Performance
+# Chapter 7: TypeScript (Bun runtime) - Dynamic Language Performance
 
 ## The Dynamic Language Challenge
 
@@ -100,7 +100,7 @@ function add(a: number, b: number): number {
 
 **Important**: TypeScript types are **erased** at runtime. They don't affect performance directly, but they help write correct code.
 
-## The Bun Implementation
+## The TypeScript (Bun runtime) Implementation
 
 From `ts/ou_bench.ts` (344 lines). Let's examine TypeScript/JavaScript-specific patterns.
 
@@ -475,7 +475,7 @@ Are checksums identical?
 
 ## Summary
 
-TypeScript/Bun demonstrates that **dynamic languages can be competitive** for numeric computing:
+TypeScript (Bun runtime) demonstrates that **dynamic languages can be competitive** for numeric computing:
 
 **Achievements**:
 - Only 66% slower than C

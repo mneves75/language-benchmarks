@@ -371,7 +371,7 @@ impl NormalPolar {
 - `s.ln()` and `.sqrt()` are methods on f64
 - Pattern is identical to C
 
-### TypeScript/Bun Implementation
+### TypeScript (Bun runtime) Implementation
 
 From `ts/ou_bench.ts:124-145`:
 

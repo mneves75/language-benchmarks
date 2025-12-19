@@ -14,7 +14,7 @@
 - C compiler (clang/gcc + version): Apple clang 17.0.0 (clang-1700.6.3.2)
 - Zig version: 0.15.2
 - Rust version: rustc 1.92.0 (ded5c06cf 2025-12-08) (Homebrew)
-- Bun version: 1.3.5
+- Bun runtime version: 1.3.5
 - Swift version: Apple Swift 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2)
 
 ## Command
@@ -35,8 +35,8 @@ Building Swift...
 === Running benchmarks ===
 n=500000 runs=1000 warmup=5 seed=1
 
-[TypeScript/Bun]
-== OU benchmark (TypeScript/Bun, unified algorithms) ==
+[TypeScript (Bun runtime)]
+== OU benchmark (TypeScript (Bun runtime), unified algorithms) ==
 n=500000 runs=1000 warmup=5 seed=1
 total_s=6.154940
 avg_ms=6.154940 median_ms=6.127333 min_ms=5.767834 max_ms=18.321375
