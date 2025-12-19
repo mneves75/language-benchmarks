@@ -1,0 +1,7 @@
+# OS
+.DS_Store
+
+# Build artifacts
+rust/target/
+c/ou_bench_c
+zig/ou_bench
