@@ -16,11 +16,13 @@ type Args = {
   runs: number;
   warmup: number;
   seed: number;
+  mode: "full" | "gn" | "ou";
+  output: "text" | "json";
 };
 
 function parseArgs(argv: string[]): Args {
   // Defaults match the blog's parameters.
-  const args: Args = { n: 500_000, runs: 1000, warmup: 5, seed: 1 };
+  const args: Args = { n: 500_000, runs: 1000, warmup: 5, seed: 1, mode: "full", output: "text" };
 
   for (const raw of argv) {
     if (!raw.startsWith("--")) continue;
@@ -45,6 +47,18 @@ function parseArgs(argv: string[]): Args {
       case "seed":
         if (!Number.isFinite(num) || num < 0) throw new Error("--seed must be >= 0");
         args.seed = Math.floor(num) >>> 0; // keep in u32 range
+        break;
+      case "mode":
+        if (val !== "full" && val !== "gn" && val !== "ou") {
+          throw new Error("--mode must be full|gn|ou");
+        }
+        args.mode = val;
+        break;
+      case "output":
+        if (val !== "text" && val !== "json") {
+          throw new Error("--output must be text|json");
+        }
+        args.output = val;
         break;
       default:
         // ignore unknown args
@@ -138,7 +152,7 @@ function nowMs(): number {
 }
 
 function main(): void {
-  const { n, runs, warmup, seed } = parseArgs(process.argv.slice(2));
+  const { n, runs, warmup, seed, mode, output } = parseArgs(process.argv.slice(2));
 
   const T = 1.0;
   const theta = 1.0;
@@ -153,25 +167,45 @@ function main(): void {
   const gn = new Float64Array(n - 1);
   const ou = new Float64Array(n);
 
+  if (mode === "ou") {
+    const rngPrefill = new XorShift128(seed);
+    const normPrefill = new NormalPolar();
+    for (let i = 0; i < n - 1; i++) {
+      gn[i] = diff * normPrefill.nextStandard(rngPrefill);
+    }
+  }
+
   // Warmup (JIT + caches)
   {
     const rng = new XorShift128(seed);
     const norm = new NormalPolar();
     for (let r = 0; r < warmup; r++) {
-      // generate gn
-      for (let i = 0; i < n - 1; i++) {
-        gn[i] = diff * norm.nextStandard(rng);
-      }
-      // simulate OU
-      let x = 0.0;
-      ou[0] = x;
-      for (let i = 1; i < n; i++) {
-        x = a * x + b + gn[i - 1];
-        ou[i] = x;
-      }
-      // checksum readback (forces stores)
       let s = 0.0;
-      for (let i = 0; i < n; i++) s += ou[i];
+      if (mode === "full") {
+        for (let i = 0; i < n - 1; i++) {
+          gn[i] = diff * norm.nextStandard(rng);
+        }
+        let x = 0.0;
+        ou[0] = x;
+        for (let i = 1; i < n; i++) {
+          x = a * x + b + gn[i - 1];
+          ou[i] = x;
+        }
+        for (let i = 0; i < n; i++) s += ou[i];
+      } else if (mode === "gn") {
+        for (let i = 0; i < n - 1; i++) {
+          gn[i] = diff * norm.nextStandard(rng);
+        }
+        for (let i = 0; i < n - 1; i++) s += gn[i];
+      } else {
+        let x = 0.0;
+        ou[0] = x;
+        for (let i = 1; i < n; i++) {
+          x = a * x + b + gn[i - 1];
+          ou[i] = x;
+        }
+        for (let i = 0; i < n; i++) s += ou[i];
+      }
       // prevent whole warmup from being dead
       if (s === 123456789.0) console.log("impossible");
     }
@@ -198,33 +232,71 @@ function main(): void {
   let checksum = 0.0;
 
   for (let r = 0; r < runs; r++) {
-    const t0 = nowMs();
+    let genMs = 0.0;
+    let simMs = 0.0;
+    let chkMs = 0.0;
+    let runMs = 0.0;
 
-    // (1) generate Gaussian increments
-    for (let i = 0; i < n - 1; i++) {
-      gn[i] = diff * norm.nextStandard(rng);
+    if (mode === "full") {
+      const t0 = nowMs();
+      for (let i = 0; i < n - 1; i++) {
+        gn[i] = diff * norm.nextStandard(rng);
+      }
+      const t1 = nowMs();
+
+      let x = 0.0;
+      ou[0] = x;
+      for (let i = 1; i < n; i++) {
+        x = a * x + b + gn[i - 1];
+        ou[i] = x;
+      }
+      const t2 = nowMs();
+
+      let s = 0.0;
+      for (let i = 0; i < n; i++) s += ou[i];
+      checksum += s;
+      const t3 = nowMs();
+
+      genMs = t1 - t0;
+      simMs = t2 - t1;
+      chkMs = t3 - t2;
+      runMs = t3 - t0;
+    } else if (mode === "gn") {
+      const t0 = nowMs();
+      for (let i = 0; i < n - 1; i++) {
+        gn[i] = diff * norm.nextStandard(rng);
+      }
+      const t1 = nowMs();
+
+      let s = 0.0;
+      for (let i = 0; i < n - 1; i++) s += gn[i];
+      checksum += s;
+      const t2 = nowMs();
+
+      genMs = t1 - t0;
+      simMs = 0.0;
+      chkMs = t2 - t1;
+      runMs = t2 - t0;
+    } else {
+      const t0 = nowMs();
+      let x = 0.0;
+      ou[0] = x;
+      for (let i = 1; i < n; i++) {
+        x = a * x + b + gn[i - 1];
+        ou[i] = x;
+      }
+      const t1 = nowMs();
+
+      let s = 0.0;
+      for (let i = 0; i < n; i++) s += ou[i];
+      checksum += s;
+      const t2 = nowMs();
+
+      genMs = 0.0;
+      simMs = t1 - t0;
+      chkMs = t2 - t1;
+      runMs = t2 - t0;
     }
-    const t1 = nowMs();
-
-    // (2) simulate OU
-    let x = 0.0;
-    ou[0] = x;
-    for (let i = 1; i < n; i++) {
-      x = a * x + b + gn[i - 1];
-      ou[i] = x;
-    }
-    const t2 = nowMs();
-
-    // (3) checksum: full readback to prevent dead-store elimination
-    let s = 0.0;
-    for (let i = 0; i < n; i++) s += ou[i];
-    checksum += s;
-    const t3 = nowMs();
-
-    const genMs = t1 - t0;
-    const simMs = t2 - t1;
-    const chkMs = t3 - t2;
-    const runMs = t3 - t0;
 
     totalGenMs += genMs;
     totalSimMs += simMs;
@@ -242,14 +314,30 @@ function main(): void {
     ? runTimes[Math.floor(runs / 2)]
     : (runTimes[runs / 2 - 1] + runTimes[runs / 2]) / 2;
 
-  console.log("== OU benchmark (TypeScript/Bun, unified algorithms) ==");
-  console.log(`n=${n} runs=${runs} warmup=${warmup} seed=${seed}`);
-  console.log(`total_s=${(totalMs / 1000).toFixed(6)}`);
-  console.log(`avg_ms=${avgMs.toFixed(6)} median_ms=${medianMs.toFixed(6)} min_ms=${minMs.toFixed(6)} max_ms=${maxMs.toFixed(6)}`);
-  console.log(
-    `breakdown_s gen_normals=${(totalGenMs / 1000).toFixed(6)} simulate=${(totalSimMs / 1000).toFixed(6)} checksum=${(totalChkMs / 1000).toFixed(6)}`
-  );
-  console.log(`checksum=${checksum.toPrecision(17)}`);
+  if (output === "json") {
+    const totalS = (totalMs / 1000).toFixed(6);
+    const avgMsStr = avgMs.toFixed(6);
+    const medianMsStr = medianMs.toFixed(6);
+    const minMsStr = minMs.toFixed(6);
+    const maxMsStr = maxMs.toFixed(6);
+    const genS = (totalGenMs / 1000).toFixed(6);
+    const simS = (totalSimMs / 1000).toFixed(6);
+    const chkS = (totalChkMs / 1000).toFixed(6);
+    const checksumStr = checksum.toPrecision(17);
+
+    console.log(
+      `{"language":"TypeScript/Bun","mode":"${mode}","n":${n},"runs":${runs},"warmup":${warmup},"seed":${seed},"total_s":${totalS},"avg_ms":${avgMsStr},"median_ms":${medianMsStr},"min_ms":${minMsStr},"max_ms":${maxMsStr},"breakdown_s":{"gen_normals":${genS},"simulate":${simS},"checksum":${chkS}},"checksum":${checksumStr}}`
+    );
+  } else {
+    console.log("== OU benchmark (TypeScript/Bun, unified algorithms) ==");
+    console.log(`n=${n} runs=${runs} warmup=${warmup} seed=${seed}`);
+    console.log(`total_s=${(totalMs / 1000).toFixed(6)}`);
+    console.log(`avg_ms=${avgMs.toFixed(6)} median_ms=${medianMs.toFixed(6)} min_ms=${minMs.toFixed(6)} max_ms=${maxMs.toFixed(6)}`);
+    console.log(
+      `breakdown_s gen_normals=${(totalGenMs / 1000).toFixed(6)} simulate=${(totalSimMs / 1000).toFixed(6)} checksum=${(totalChkMs / 1000).toFixed(6)}`
+    );
+    console.log(`checksum=${checksum.toPrecision(17)}`);
+  }
 }
 
 main();

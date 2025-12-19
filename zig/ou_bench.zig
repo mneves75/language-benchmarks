@@ -19,7 +19,12 @@ const Args = struct {
     runs: usize = 1000,
     warmup: usize = 5,
     seed: u32 = 1,
+    mode: Mode = .full,
+    output: Output = .text,
 };
+
+const Mode = enum { full, gn, ou };
+const Output = enum { text, json };
 
 fn parseArgs(allocator: std.mem.Allocator) !Args {
     var out = Args{};
@@ -45,6 +50,17 @@ fn parseArgs(allocator: std.mem.Allocator) !Args {
         } else if (std.mem.startsWith(u8, a, "--seed=")) {
             const v = try std.fmt.parseInt(u64, a[7..], 10);
             out.seed = @as(u32, @intCast(v & 0xFFFF_FFFF));
+        } else if (std.mem.startsWith(u8, a, "--mode=")) {
+            const v = a[7..];
+            if (std.mem.eql(u8, v, "full")) out.mode = .full
+            else if (std.mem.eql(u8, v, "gn")) out.mode = .gn
+            else if (std.mem.eql(u8, v, "ou")) out.mode = .ou
+            else return error.InvalidMode;
+        } else if (std.mem.startsWith(u8, a, "--output=")) {
+            const v = a[9..];
+            if (std.mem.eql(u8, v, "text")) out.output = .text
+            else if (std.mem.eql(u8, v, "json")) out.output = .json
+            else return error.InvalidOutput;
         }
     }
 
@@ -148,29 +164,67 @@ pub fn main() !void {
     var ou = try allocator.alloc(f64, n);
     defer allocator.free(ou);
 
+    if (args.mode == .ou) {
+        var rng_prefill = XorShift128.init(args.seed);
+        var norm_prefill = NormalPolar{};
+        var i: usize = 0;
+        while (i < n - 1) : (i += 1) {
+            gn[i] = diff * norm_prefill.next(&rng_prefill);
+        }
+    }
+
     // Warmup
     {
         var rng = XorShift128.init(args.seed);
         var norm = NormalPolar{};
         var r: usize = 0;
         while (r < args.warmup) : (r += 1) {
-            var i: usize = 0;
-            while (i < n - 1) : (i += 1) {
-                gn[i] = diff * norm.next(&rng);
-            }
-
-            var x: f64 = 0.0;
-            ou[0] = x;
-            i = 1;
-            while (i < n) : (i += 1) {
-                x = a * x + b + gn[i - 1];
-                ou[i] = x;
-            }
-
             var s: f64 = 0.0;
-            i = 0;
-            while (i < n) : (i += 1) {
-                s += ou[i];
+            switch (args.mode) {
+                .full => {
+                    var i: usize = 0;
+                    while (i < n - 1) : (i += 1) {
+                        gn[i] = diff * norm.next(&rng);
+                    }
+
+                    var x: f64 = 0.0;
+                    ou[0] = x;
+                    i = 1;
+                    while (i < n) : (i += 1) {
+                        x = a * x + b + gn[i - 1];
+                        ou[i] = x;
+                    }
+
+                    i = 0;
+                    while (i < n) : (i += 1) {
+                        s += ou[i];
+                    }
+                },
+                .gn => {
+                    var i: usize = 0;
+                    while (i < n - 1) : (i += 1) {
+                        gn[i] = diff * norm.next(&rng);
+                    }
+
+                    i = 0;
+                    while (i < n - 1) : (i += 1) {
+                        s += gn[i];
+                    }
+                },
+                .ou => {
+                    var x: f64 = 0.0;
+                    ou[0] = x;
+                    var i: usize = 1;
+                    while (i < n) : (i += 1) {
+                        x = a * x + b + gn[i - 1];
+                        ou[i] = x;
+                    }
+
+                    i = 0;
+                    while (i < n) : (i += 1) {
+                        s += ou[i];
+                    }
+                },
             }
             if (s == 123456789.0) {
                 std.debug.print("impossible\n", .{});
@@ -196,35 +250,91 @@ pub fn main() !void {
 
     var r: usize = 0;
     while (r < args.runs) : (r += 1) {
-        const t0 = nowNs();
+        var gen: f64 = 0.0;
+        var sim: f64 = 0.0;
+        var chk: f64 = 0.0;
+        var run: f64 = 0.0;
 
-        var i: usize = 0;
-        while (i < n - 1) : (i += 1) {
-            gn[i] = diff * norm.next(&rng);
+        switch (args.mode) {
+            .full => {
+                const t0 = nowNs();
+
+                var i: usize = 0;
+                while (i < n - 1) : (i += 1) {
+                    gn[i] = diff * norm.next(&rng);
+                }
+                const t1 = nowNs();
+
+                var x: f64 = 0.0;
+                ou[0] = x;
+                i = 1;
+                while (i < n) : (i += 1) {
+                    x = a * x + b + gn[i - 1];
+                    ou[i] = x;
+                }
+                const t2 = nowNs();
+
+                var s: f64 = 0.0;
+                i = 0;
+                while (i < n) : (i += 1) {
+                    s += ou[i];
+                }
+                checksum += s;
+                const t3 = nowNs();
+
+                gen = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
+                sim = @as(f64, @floatFromInt(t2 - t1)) * 1e-9;
+                chk = @as(f64, @floatFromInt(t3 - t2)) * 1e-9;
+                run = @as(f64, @floatFromInt(t3 - t0)) * 1e-9;
+            },
+            .gn => {
+                const t0 = nowNs();
+
+                var i: usize = 0;
+                while (i < n - 1) : (i += 1) {
+                    gn[i] = diff * norm.next(&rng);
+                }
+                const t1 = nowNs();
+
+                var s: f64 = 0.0;
+                i = 0;
+                while (i < n - 1) : (i += 1) {
+                    s += gn[i];
+                }
+                checksum += s;
+                const t2 = nowNs();
+
+                gen = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
+                sim = 0.0;
+                chk = @as(f64, @floatFromInt(t2 - t1)) * 1e-9;
+                run = @as(f64, @floatFromInt(t2 - t0)) * 1e-9;
+            },
+            .ou => {
+                const t0 = nowNs();
+
+                var x: f64 = 0.0;
+                ou[0] = x;
+                var i: usize = 1;
+                while (i < n) : (i += 1) {
+                    x = a * x + b + gn[i - 1];
+                    ou[i] = x;
+                }
+                const t1 = nowNs();
+
+                var s: f64 = 0.0;
+                i = 0;
+                while (i < n) : (i += 1) {
+                    s += ou[i];
+                }
+                checksum += s;
+                const t2 = nowNs();
+
+                gen = 0.0;
+                sim = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
+                chk = @as(f64, @floatFromInt(t2 - t1)) * 1e-9;
+                run = @as(f64, @floatFromInt(t2 - t0)) * 1e-9;
+            },
         }
-        const t1 = nowNs();
-
-        var x: f64 = 0.0;
-        ou[0] = x;
-        i = 1;
-        while (i < n) : (i += 1) {
-            x = a * x + b + gn[i - 1];
-            ou[i] = x;
-        }
-        const t2 = nowNs();
-
-        var s: f64 = 0.0;
-        i = 0;
-        while (i < n) : (i += 1) {
-            s += ou[i];
-        }
-        checksum += s;
-        const t3 = nowNs();
-
-        const gen = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
-        const sim = @as(f64, @floatFromInt(t2 - t1)) * 1e-9;
-        const chk = @as(f64, @floatFromInt(t3 - t2)) * 1e-9;
-        const run = @as(f64, @floatFromInt(t3 - t0)) * 1e-9;
 
         total_gen_s += gen;
         total_sim_s += sim;
@@ -248,10 +358,39 @@ pub fn main() !void {
     const min_ms = min_s * 1000.0;
     const max_ms = max_s * 1000.0;
 
-    std.debug.print("== OU benchmark (Zig, unified algorithms) ==\n", .{});
-    std.debug.print("n={} runs={} warmup={} seed={}\n", .{ args.n, args.runs, args.warmup, args.seed });
-    std.debug.print("total_s={d:.6}\n", .{ total_s });
-    std.debug.print("avg_ms={d:.6} median_ms={d:.6} min_ms={d:.6} max_ms={d:.6}\n", .{ avg_ms, median_ms, min_ms, max_ms });
-    std.debug.print("breakdown_s gen_normals={d:.6} simulate={d:.6} checksum={d:.6}\n", .{ total_gen_s, total_sim_s, total_chk_s });
-    std.debug.print("checksum={d:.17}\n", .{ checksum });
+    var stdout = std.fs.File.stdout().deprecatedWriter();
+    const mode_str = switch (args.mode) {
+        .full => "full",
+        .gn => "gn",
+        .ou => "ou",
+    };
+
+    if (args.output == .json) {
+        try stdout.print(
+            "{{\"language\":\"Zig\",\"mode\":\"{s}\",\"n\":{},\"runs\":{},\"warmup\":{},\"seed\":{},\"total_s\":{d:.6},\"avg_ms\":{d:.6},\"median_ms\":{d:.6},\"min_ms\":{d:.6},\"max_ms\":{d:.6},\"breakdown_s\":{{\"gen_normals\":{d:.6},\"simulate\":{d:.6},\"checksum\":{d:.6}}},\"checksum\":{d:.17}}}\n",
+            .{
+                mode_str,
+                args.n,
+                args.runs,
+                args.warmup,
+                args.seed,
+                total_s,
+                avg_ms,
+                median_ms,
+                min_ms,
+                max_ms,
+                total_gen_s,
+                total_sim_s,
+                total_chk_s,
+                checksum,
+            },
+        );
+    } else {
+        try stdout.print("== OU benchmark (Zig, unified algorithms) ==\n", .{});
+        try stdout.print("n={} runs={} warmup={} seed={}\n", .{ args.n, args.runs, args.warmup, args.seed });
+        try stdout.print("total_s={d:.6}\n", .{ total_s });
+        try stdout.print("avg_ms={d:.6} median_ms={d:.6} min_ms={d:.6} max_ms={d:.6}\n", .{ avg_ms, median_ms, min_ms, max_ms });
+        try stdout.print("breakdown_s gen_normals={d:.6} simulate={d:.6} checksum={d:.6}\n", .{ total_gen_s, total_sim_s, total_chk_s });
+        try stdout.print("checksum={d:.17}\n", .{ checksum });
+    }
 }

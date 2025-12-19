@@ -2,16 +2,16 @@
 
 ## Project Structure & Module Organization
 
-- `ts/`, `rust/`, `zig/`, `c/`: language-specific implementations of the same OU benchmark (keep algorithms aligned across languages).
+- `ts/`, `rust/`, `zig/`, `c/`, `swift/`: language-specific implementations of the same OU benchmark (keep algorithms aligned across languages).
 - `run_all.sh`: convenience script that builds/runs all implementations with the same parameters.
 - `DOCS/`: background notes and analysis (non-code documentation).
 - `README.md` and `CLAUDE.md`: usage and methodology notes; update if you change the algorithm or CLI flags.
-- Build artifacts (e.g., `c/ou_bench_c`, `zig/ou_bench`) are generated locally and should not be edited by hand.
+- Build artifacts (e.g., `c/ou_bench_c`, `zig/ou_bench`, `swift/ou_bench_swift`) are generated locally and should not be edited by hand.
 
 ## Build, Test, and Development Commands
 
 - Run everything with shared parameters:
-  - `./run_all.sh [n] [runs] [warmup] [seed]`
+  - `./run_all.sh [n] [runs] [warmup] [seed] [mode] [output]`
 - TypeScript (Bun):
   - `cd ts && bun run ou_bench.ts --n=500000 --runs=1000 --warmup=5 --seed=1`
 - Rust:
@@ -23,6 +23,9 @@
 - Zig:
   - `cd zig && zig build-exe ou_bench.zig -O ReleaseFast -fstrip -femit-bin=ou_bench`
   - `./ou_bench --n=500000 --runs=1000 --warmup=5 --seed=1`
+- Swift:
+  - `cd swift && swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench_swift`
+  - `./ou_bench_swift --n=500000 --runs=1000 --warmup=5 --seed=1`
 
 ## Coding Style & Naming Conventions
 
@@ -49,5 +52,5 @@
 
 ## Benchmark Parity Checklist
 
-- If you change the algorithm or parameters in one language, mirror it across all four implementations.
+- If you change the algorithm or parameters in one language, mirror it across all five implementations.
 - Keep allocation strategy and timing boundaries consistent with the README.
