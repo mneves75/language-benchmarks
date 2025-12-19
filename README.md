@@ -1,6 +1,6 @@
 # OU Benchmark
 
-A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, **Zig**, **Rust**, **Swift**, and **TypeScript/Bun**.
+A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, **Zig**, **Rust**, **Swift**, and **TypeScript (Bun runtime)**.
 
 ## Results
 
@@ -11,7 +11,7 @@ A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, 
 | **C**    | 3.71     | 3.70        | 3.44     | 5.08     |
 | **Zig**  | 3.82     | 3.82        | 3.57     | 5.08     |
 | **Rust** | 3.85     | 3.84        | 3.59     | 5.79     |
-| **Bun**  | 6.15     | 6.13        | 5.77     | 18.32    |
+| **TypeScript (Bun runtime)**  | 6.15     | 6.13        | 5.77     | 18.32    |
 | **Swift**| 9.25     | 9.25        | 8.82     | 9.95     |
 
 *Default parameters: n=500000, runs=1000, warmup=5, seed=1*
@@ -54,7 +54,7 @@ Additional flags (all languages):
 
 ## Individual Language Commands
 
-### TypeScript/Bun
+### TypeScript (Bun runtime)
 ```bash
 cd ts && bun run ou_bench.ts --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
@@ -67,7 +67,7 @@ cd rust && RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 ### C
 ```bash
-cd c && cc -Ofast -march=native -fno-math-errno -fno-trapping-math -std=c11 ou_bench.c -lm -o ou_bench_c
+cd c && cc -O3 -ffast-math -march=native -fno-math-errno -fno-trapping-math -std=c11 ou_bench.c -lm -o ou_bench_c
 ./ou_bench_c --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
@@ -100,7 +100,7 @@ cd swift && swiftc -Ounchecked -whole-module-optimization ou_bench.swift -o ou_b
 ```
 .
 ├── run_all.sh      # Build and run all benchmarks
-├── ts/             # TypeScript/Bun implementation
+├── ts/             # TypeScript (Bun runtime) implementation
 ├── rust/           # Rust implementation
 ├── zig/            # Zig implementation
 ├── c/              # C implementation
@@ -113,4 +113,4 @@ This benchmark is inspired by and extends the work from the original article:
 
 **[🦀 Scientific Computing Benchmark: Rust 🦀 vs Zig ⚡ vs The Father C 👴](https://rust-dd.com/post/crab-scientific-computing-benchmark-rust-crab-vs-zig-zap-vs-the-father-c-older_man)**
 
-The original benchmark compared C, Zig, and Rust for scientific computing using the Ornstein-Uhlenbeck process. This repository adds TypeScript/Bun and Swift implementations while maintaining the same fair methodology.
+The original benchmark compared C, Zig, and Rust for scientific computing using the Ornstein-Uhlenbeck process. This repository adds TypeScript (Bun runtime) and Swift implementations while maintaining the same fair methodology.
