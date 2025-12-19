@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.1] - 2025-12-19
+
+### Added
+- Reference to original benchmark article in README.md and CLAUDE.md
+
 ## [1.1.0] - 2025-12-19
 
 ### Added

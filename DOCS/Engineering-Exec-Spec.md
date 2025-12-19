@@ -136,6 +136,7 @@ Phase 3
 - `./run_all.sh` (defaults: n=500000 runs=1000 warmup=5 seed=1)
 
 ## References
+- Original article: https://rust-dd.com/post/crab-scientific-computing-benchmark-rust-crab-vs-zig-zap-vs-the-father-c-older_man
 - https://github.com/google/benchmark/blob/main/docs/user_guide.md
 - https://bheisler.github.io/criterion.rs/book/user_guide.html
 - https://bun.sh/docs/api/gc
