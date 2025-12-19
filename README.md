@@ -46,7 +46,7 @@ Each benchmark prints:
 - Stage breakdown: gen_normals, simulate, checksum (in seconds)
 - Checksum (for correctness verification)
 
-**Note:** Checksums may differ slightly across languages due to libm differences. This is expected.
+**Note:** Checksums may differ slightly across languages due to libm differences and aggressive optimizer flags. This is expected.
 
 Additional flags (all languages):
 - `--mode=full|gn|ou` (default `full`)
@@ -61,28 +61,25 @@ cd ts && bun run ou_bench.ts --n=500000 --runs=1000 --warmup=5 --seed=1
 
 ### Rust
 ```bash
-cd rust && cargo build --release
+cd rust && RUSTFLAGS="-C target-cpu=native" cargo build --release
 ./target/release/ou_bench_unified --n=500000 --runs=1000 --warmup=5 --seed=1
-
-# Optional: native CPU optimizations
-RUSTFLAGS="-C target-cpu=native" cargo build --release
 ```
 
 ### C
 ```bash
-cd c && cc -O3 -march=native -std=c11 ou_bench.c -lm -o ou_bench_c
+cd c && cc -Ofast -march=native -fno-math-errno -fno-trapping-math -std=c11 ou_bench.c -lm -o ou_bench_c
 ./ou_bench_c --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
 ### Zig
 ```bash
-cd zig && zig build-exe ou_bench.zig -O ReleaseFast -fstrip -femit-bin=ou_bench
+cd zig && zig build-exe ou_bench.zig -O ReleaseFast -mcpu=native -fstrip -femit-bin=ou_bench
 ./ou_bench --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
 ### Swift
 ```bash
-cd swift && swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench_swift
+cd swift && swiftc -Ounchecked -whole-module-optimization ou_bench.swift -o ou_bench_swift
 ./ou_bench_swift --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 

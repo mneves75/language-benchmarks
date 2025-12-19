@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.1] - 2025-12-19
+
+### Changed
+- Build scripts and docs now default to maximum optimization flags across Rust/C/Zig/Swift
+- Documented that aggressive optimization may affect checksum differences
+
 ## [1.2.0] - 2025-12-19
 
 ### Added

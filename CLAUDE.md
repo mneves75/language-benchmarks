@@ -32,26 +32,24 @@ cd ts && bun run ou_bench.ts --n=500000 --runs=1000 --warmup=5 --seed=1
 
 **Rust:**
 ```bash
-cd rust && cargo run --release -- --n=500000 --runs=1000 --warmup=5 --seed=1
-# With native CPU optimization:
-RUSTFLAGS="-C target-cpu=native" cargo run --release -- --n=500000 --runs=1000 --warmup=5 --seed=1
+cd rust && RUSTFLAGS="-C target-cpu=native" cargo run --release -- --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
 **C:**
 ```bash
-cd c && cc -O3 -march=native -std=c11 ou_bench.c -lm -o ou_bench_c
+cd c && cc -Ofast -march=native -fno-math-errno -fno-trapping-math -std=c11 ou_bench.c -lm -o ou_bench_c
 ./ou_bench_c --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
 **Zig:**
 ```bash
-cd zig && zig build-exe ou_bench.zig -O ReleaseFast -fstrip -femit-bin=ou_bench
+cd zig && zig build-exe ou_bench.zig -O ReleaseFast -mcpu=native -fstrip -femit-bin=ou_bench
 ./ou_bench --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
 **Swift:**
 ```bash
-cd swift && swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench_swift
+cd swift && swiftc -Ounchecked -whole-module-optimization ou_bench.swift -o ou_bench_swift
 ./ou_bench_swift --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
@@ -69,6 +67,6 @@ Each implementation follows the same structure:
 
 ## Important Notes
 
-- Checksums may differ slightly across languages due to libm implementation differences
+- Checksums may differ slightly across languages due to libm and aggressive optimizer flags
 - Allocations and argument parsing occur outside timed regions
 - The Rust release profile enables LTO and single codegen-unit for maximum optimization
