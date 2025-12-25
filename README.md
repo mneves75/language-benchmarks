@@ -1,6 +1,6 @@
 # OU Benchmark
 
-A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, **Zig**, **Rust**, **Swift**, and **TypeScript (Bun runtime)**.
+A fair, methodology-fixed Ornstein-Uhlenbeck process benchmark comparing **C**, **Zig**, **Rust**, **Swift**, **V**, and **TypeScript (Bun runtime)**.
 
 ## What is the OU Process?
 
@@ -25,6 +25,7 @@ This is a realistic scientific computing workload that tests: floating-point mat
 | Language | Avg (ms) | Median (ms) | Min (ms) | Max (ms) |
 |----------|----------|-------------|----------|----------|
 | **C**    | 3.25     | 3.25        | 2.98     | 3.85     |
+| **V**    | 3.25     | 3.24        | 3.16     | 4.30     |
 | **Zig**  | 3.93     | 3.93        | 3.61     | 4.76     |
 | **Rust** | 4.04     | 3.95        | 3.64     | 15.10    |
 | **Swift**| 4.44     | 4.44        | 4.18     | 5.06     |
@@ -99,6 +100,12 @@ cd swift && swiftc -Ounchecked -whole-module-optimization ou_bench.swift -o ou_b
 ./ou_bench_swift --n=500000 --runs=1000 --warmup=5 --seed=1
 ```
 
+### V
+```bash
+cd v && v -prod -cstrict -cc gcc -skip-unused -cflags '-O3 -ffast-math -march=native -fno-math-errno -fno-trapping-math' ou_bench.v
+./ou_bench --n=500000 --runs=1000 --warmup=5 --seed=1
+```
+
 ## Tips for Clean Comparisons
 
 - Run on AC power, close background apps
@@ -120,7 +127,8 @@ cd swift && swiftc -Ounchecked -whole-module-optimization ou_bench.swift -o ou_b
 ├── rust/           # Rust implementation
 ├── zig/            # Zig implementation
 ├── c/              # C implementation
-└── swift/          # Swift implementation
+├── swift/          # Swift implementation
+└── v/              # V implementation
 ```
 
 ## Acknowledgments
@@ -135,13 +143,28 @@ Thanks to:
 - **[rust-dd](https://github.com/rust-dd)** for the original benchmark implementation and methodology
 - **[Peter Steinberger](https://x.com/steipete)** for the heads up about the compiler flags
 
-The original benchmark compared C, Zig, and Rust for scientific computing using the Ornstein-Uhlenbeck process. This repository adds TypeScript (Bun runtime) and Swift implementations while maintaining the same fair methodology.
+The original benchmark compared C, Zig, and Rust for scientific computing using the Ornstein-Uhlenbeck process. This repository adds TypeScript (Bun runtime), Swift, and V implementations while maintaining the same fair methodology.
 
 ## Language Resources
 
 - **C** - [ISO C Standard](https://www.iso.org/standard/74528.html)
 - **Zig** - [ziglang.org](https://ziglang.org/)
 - **Rust** - [rust-lang.org](https://www.rust-lang.org/)
+- **V** - [vlang.io](https://vlang.io/)
 - **TypeScript** - [typescriptlang.org](https://www.typescriptlang.org/)
 - **Bun Runtime** - [bun.sh](https://bun.sh/)
 - **Swift** - [swift.org](https://www.swift.org/)
+
+## Installing V
+
+To run the V benchmark, you'll need to install the V compiler:
+
+```bash
+# Install V
+git clone https://github.com/vlang/v
+cd v
+make
+sudo ./v symlink  # Optional: creates a system-wide 'v' command
+```
+
+Or visit [vlang.io](https://vlang.io/) for other installation options.

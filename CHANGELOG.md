@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.3.0] - 2025-12-25
+
+### Added
+- V language implementation with maximum optimizations
+- V achieves C-level performance (avg_ms=3.25, identical to C)
+- Optimizations applied:
+  - `@[inline]` attributes on all hot-path functions
+  - `unsafe` blocks around array access loops to eliminate bounds checking
+  - Compiler flags: `-prod -cstrict -cc gcc -skip-unused` with `-O3 -ffast-math -march=native`
+- `v/OPTIMIZATIONS.md` documenting V-specific performance optimizations
+- Updated README.md, CLAUDE.md, and run_all.sh to include V
+- V installation instructions in README.md
+
+### Benchmark Results
+- V (vlang.io): avg/median/min/max = 3.25/3.24/3.16/4.30 ms
+- Matches C performance within measurement error
+
 ## [1.2.3] - 2025-12-19
 
 ### Changed
