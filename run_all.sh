@@ -23,6 +23,9 @@ echo "Building Zig..."
 echo "Building Swift..."
 ( cd swift && swiftc -Ounchecked -whole-module-optimization ou_bench.swift -o ou_bench_swift )
 
+echo "Building V..."
+( cd v && v -prod -cstrict -cc gcc -skip-unused -cflags '-O3 -ffast-math -march=native -fno-math-errno -fno-trapping-math' ou_bench.v )
+
 echo
 echo "=== Running benchmarks ==="
 echo "n=$N runs=$RUNS warmup=$WARMUP seed=$SEED"
@@ -48,4 +51,8 @@ echo "[Zig]"
 
 echo "[Swift]"
 ( cd swift && ./ou_bench_swift --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
+echo
+
+echo "[V]"
+( cd v && ./ou_bench --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
 echo
