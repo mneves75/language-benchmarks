@@ -6,3 +6,8 @@ rust/target/
 c/ou_bench_c
 zig/ou_bench
 swift/ou_bench_swift
+.scratch/
+v/ou_bench_v
+__pycache__/
+.zig-cache/
+agent_planning/

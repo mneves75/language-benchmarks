@@ -1,0 +1,132 @@
+--- a/zig/ou_bench.zig
++++ b/zig/ou_bench.zig
+@@ -26,10 +26,8 @@
+ const Mode = enum { full, gn, ou };
+ const Output = enum { text, json };
+
+-fn parseArgs(allocator: std.mem.Allocator) !Args {
++fn parseArgs(argv: []const [:0]const u8) !Args {
+     var out = Args{};
+-    const argv = try std.process.argsAlloc(allocator);
+-    defer std.process.argsFree(allocator, argv);
+
+     var i: usize = 1;
+     while (i < argv.len) : (i += 1) {
+@@ -139,13 +137,14 @@
+     }
+ };
+
+-inline fn nowNs() i128 {
+-    return std.time.nanoTimestamp();
++inline fn nowNs(io: std.Io) i96 {
++    return std.Io.Clock.awake.now(io).nanoseconds;
+ }
+
+-pub fn main() !void {
+-    const allocator = std.heap.page_allocator;
+-    const args = try parseArgs(allocator);
++pub fn main(init: std.process.Init) !void {
++    const allocator = init.gpa;
++    const io = init.io;
++    const args = try parseArgs(try init.minimal.args.toSlice(init.arena.allocator()));
+
+     const T: f64 = 1.0;
+     const theta: f64 = 1.0;
+@@ -257,13 +256,13 @@
+
+         switch (args.mode) {
+             .full => {
+-                const t0 = nowNs();
++                const t0 = nowNs(io);
+
+                 var i: usize = 0;
+                 while (i < n - 1) : (i += 1) {
+                     gn[i] = diff * norm.next(&rng);
+                 }
+-                const t1 = nowNs();
++                const t1 = nowNs(io);
+
+                 var x: f64 = 0.0;
+                 ou[0] = x;
+@@ -272,7 +271,7 @@
+                     x = a * x + b + gn[i - 1];
+                     ou[i] = x;
+                 }
+-                const t2 = nowNs();
++                const t2 = nowNs(io);
+
+                 var s: f64 = 0.0;
+                 i = 0;
+@@ -280,7 +279,7 @@
+                     s += ou[i];
+                 }
+                 checksum += s;
+-                const t3 = nowNs();
++                const t3 = nowNs(io);
+
+                 gen = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
+                 sim = @as(f64, @floatFromInt(t2 - t1)) * 1e-9;
+@@ -288,13 +287,13 @@
+                 run = @as(f64, @floatFromInt(t3 - t0)) * 1e-9;
+             },
+             .gn => {
+-                const t0 = nowNs();
++                const t0 = nowNs(io);
+
+                 var i: usize = 0;
+                 while (i < n - 1) : (i += 1) {
+                     gn[i] = diff * norm.next(&rng);
+                 }
+-                const t1 = nowNs();
++                const t1 = nowNs(io);
+
+                 var s: f64 = 0.0;
+                 i = 0;
+@@ -302,7 +301,7 @@
+                     s += gn[i];
+                 }
+                 checksum += s;
+-                const t2 = nowNs();
++                const t2 = nowNs(io);
+
+                 gen = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
+                 sim = 0.0;
+@@ -310,7 +309,7 @@
+                 run = @as(f64, @floatFromInt(t2 - t0)) * 1e-9;
+             },
+             .ou => {
+-                const t0 = nowNs();
++                const t0 = nowNs(io);
+
+                 var x: f64 = 0.0;
+                 ou[0] = x;
+@@ -319,7 +318,7 @@
+                     x = a * x + b + gn[i - 1];
+                     ou[i] = x;
+                 }
+-                const t1 = nowNs();
++                const t1 = nowNs(io);
+
+                 var s: f64 = 0.0;
+                 i = 0;
+@@ -327,7 +326,7 @@
+                     s += ou[i];
+                 }
+                 checksum += s;
+-                const t2 = nowNs();
++                const t2 = nowNs(io);
+
+                 gen = 0.0;
+                 sim = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
+@@ -358,7 +357,10 @@
+     const min_ms = min_s * 1000.0;
+     const max_ms = max_s * 1000.0;
+
+-    var stdout = std.fs.File.stdout().deprecatedWriter();
++    var output_buffer: [4096]u8 = undefined;
++    var file_writer = std.Io.File.stdout().writer(io, &output_buffer);
++    const stdout = &file_writer.interface;
++    defer stdout.flush() catch {};
+     const mode_str = switch (args.mode) {
+         .full => "full",
+         .gn => "gn",

@@ -1,22 +1,22 @@
 /*
   Unified OU benchmark (V)
 
-  Algorithms intentionally match TS/Rust/Zig/C in this repo:
+  Algorithms intentionally match all six implementations in this repository:
   - PRNG: xorshift128 (u32) seeded via splitmix32
   - Uniform: 53-bit double from two u32 draws
   - Normal: Marsaglia polar method with cached spare
   - OU: Euler update with precomputed a,b and diffusion coefficient
 
-  Build (maximum optimization):
-    v -prod -cstrict -cc gcc -skip-unused -cflags '-O3 -ffast-math -march=native -fno-math-errno -fno-trapping-math' ou_bench.v
+  Build (optimized, strict floating point):
+    v -prod -cc clang -cflags '-O3 -fno-fast-math -ffp-contract=off -march=native' -o ou_bench_v ou_bench.v
 
   Run:
-    ./ou_bench --n=500000 --runs=1000 --warmup=5 --seed=1
+    ./ou_bench_v --n=500000 --runs=1000 --warmup=5 --seed=1
 */
-
 import time
 import math
 import os
+import strconv
 
 struct Splitmix32 {
 mut:
@@ -42,7 +42,9 @@ mut:
 }
 
 fn xorshift128_new(seed u32) Xorshift128 {
-	mut sm := Splitmix32{s: seed}
+	mut sm := Splitmix32{
+		s: seed
+	}
 	mut rng := Xorshift128{
 		x: sm.next()
 		y: sm.next()
@@ -119,6 +121,28 @@ struct Args {
 	output Output
 }
 
+fn decimal(value string, maximum u64) u64 {
+	if value.len == 0 {
+		eprintln('error: expected decimal digits')
+		exit(1)
+	}
+	for c in value {
+		if c < `0` || c > `9` {
+			eprintln('error: expected decimal digits')
+			exit(1)
+		}
+	}
+	number := strconv.parse_uint(value, 10, 64) or {
+		eprintln('error: integer out of range')
+		exit(1)
+	}
+	if number > maximum {
+		eprintln('error: integer out of range')
+		exit(1)
+	}
+	return number
+}
+
 fn parse_args() Args {
 	mut n := 500000
 	mut runs := 1000
@@ -129,31 +153,37 @@ fn parse_args() Args {
 
 	for arg in os.args[1..] {
 		if arg.starts_with('--n=') {
-			n = arg.substr(4, arg.len).int()
+			n = int(decimal(arg[4..], 2147483647))
 			if n < 2 {
 				eprintln('--n must be >= 2')
 				exit(1)
 			}
 		} else if arg.starts_with('--runs=') {
-			runs = arg.substr(7, arg.len).int()
+			runs = int(decimal(arg[7..], 2147483647))
 			if runs < 1 {
 				eprintln('--runs must be >= 1')
 				exit(1)
 			}
 		} else if arg.starts_with('--warmup=') {
-			warmup = arg.substr(9, arg.len).int()
+			warmup = int(decimal(arg[9..], 2147483647))
 			if warmup < 0 {
 				eprintln('--warmup must be >= 0')
 				exit(1)
 			}
 		} else if arg.starts_with('--seed=') {
-			seed = u32(arg.substr(7, arg.len).u64())
+			seed = u32(decimal(arg[7..], 18446744073709551615))
 		} else if arg.starts_with('--mode=') {
 			mode_str := arg.substr(7, arg.len)
 			mode = match mode_str {
-				'full' { Mode.full }
-				'gn' { Mode.gn }
-				'ou' { Mode.ou }
+				'full' {
+					Mode.full
+				}
+				'gn' {
+					Mode.gn
+				}
+				'ou' {
+					Mode.ou
+				}
 				else {
 					eprintln('--mode must be full|gn|ou')
 					exit(1)
@@ -162,22 +192,29 @@ fn parse_args() Args {
 		} else if arg.starts_with('--output=') {
 			output_str := arg.substr(9, arg.len)
 			output = match output_str {
-				'text' { Output.text }
-				'json' { Output.json }
+				'text' {
+					Output.text
+				}
+				'json' {
+					Output.json
+				}
 				else {
 					eprintln('--output must be text|json')
 					exit(1)
 				}
 			}
+		} else {
+			eprintln('error: unknown option; expected --key=value')
+			exit(1)
 		}
 	}
 
 	return Args{
-		n: n
-		runs: runs
+		n:      n
+		runs:   runs
 		warmup: warmup
-		seed: seed
-		mode: mode
+		seed:   seed
+		mode:   mode
 		output: output
 	}
 }
@@ -213,9 +250,11 @@ fn main() {
 	if args.mode == .ou {
 		mut rng_prefill := xorshift128_new(args.seed)
 		mut norm_prefill := NormalPolar{}
-		unsafe {
-			for i in 0 .. n - 1 {
-				gn[i] = diff * norm_prefill.next(mut rng_prefill)
+		for i in 0 .. n - 1 {
+			value := diff * norm_prefill.next(mut rng_prefill)
+			// i is in 0..gn.len; this fixed buffer cannot resize in the loop.
+			unsafe {
+				gn[i] = value
 			}
 		}
 	}
@@ -229,45 +268,48 @@ fn main() {
 			mut s := 0.0
 			match args.mode {
 				.full {
-					unsafe {
-						for i in 0 .. n - 1 {
-							gn[i] = diff * norm.next(mut rng)
+					for i in 0 .. n - 1 {
+						value := diff * norm.next(mut rng)
+						// i is in 0..gn.len; this fixed buffer cannot resize in the loop.
+						unsafe {
+							gn[i] = value
 						}
-						mut x := 0.0
-						ou[0] = x
-						for i in 1 .. n {
-							x = a * x + b + gn[i - 1]
-							ou[i] = x
-						}
-						for i in 0 .. n {
-							s += ou[i]
-						}
+					}
+					mut x := 0.0
+					ou[0] = x
+					for i in 1 .. n {
+						x = a * x + b + gn[i - 1]
+						ou[i] = x
+					}
+					for i in 0 .. n {
+						s += ou[i]
 					}
 				}
 				.gn {
-					unsafe {
-						for i in 0 .. n - 1 {
-							gn[i] = diff * norm.next(mut rng)
+					for i in 0 .. n - 1 {
+						value := diff * norm.next(mut rng)
+						// i is in 0..gn.len; this fixed buffer cannot resize in the loop.
+						unsafe {
+							gn[i] = value
 						}
-						for i in 0 .. n - 1 {
-							s += gn[i]
-						}
+					}
+					for i in 0 .. n - 1 {
+						s += gn[i]
 					}
 				}
 				.ou {
-					unsafe {
-						mut x := 0.0
-						ou[0] = x
-						for i in 1 .. n {
-							x = a * x + b + gn[i - 1]
-							ou[i] = x
-						}
-						for i in 0 .. n {
-							s += ou[i]
-						}
+					mut x := 0.0
+					ou[0] = x
+					for i in 1 .. n {
+						x = a * x + b + gn[i - 1]
+						ou[i] = x
+					}
+					for i in 0 .. n {
+						s += ou[i]
 					}
 				}
 			}
+
 			if s == 123456789.0 {
 				println('impossible')
 			}
@@ -298,28 +340,26 @@ fn main() {
 		match args.mode {
 			.full {
 				t0 := time.sys_mono_now()
-				unsafe {
-					for i in 0 .. n - 1 {
-						gn[i] = diff * norm.next(mut rng)
+				for i in 0 .. n - 1 {
+					value := diff * norm.next(mut rng)
+					// i is in 0..gn.len; this fixed buffer cannot resize in the loop.
+					unsafe {
+						gn[i] = value
 					}
 				}
 				t1 := time.sys_mono_now()
 
-				unsafe {
-					mut x := 0.0
-					ou[0] = x
-					for i in 1 .. n {
-						x = a * x + b + gn[i - 1]
-						ou[i] = x
-					}
+				mut x := 0.0
+				ou[0] = x
+				for i in 1 .. n {
+					x = a * x + b + gn[i - 1]
+					ou[i] = x
 				}
 				t2 := time.sys_mono_now()
 
 				mut s := 0.0
-				unsafe {
-					for i in 0 .. n {
-						s += ou[i]
-					}
+				for i in 0 .. n {
+					s += ou[i]
 				}
 				checksum += s
 				t3 := time.sys_mono_now()
@@ -331,18 +371,18 @@ fn main() {
 			}
 			.gn {
 				t0 := time.sys_mono_now()
-				unsafe {
-					for i in 0 .. n - 1 {
-						gn[i] = diff * norm.next(mut rng)
+				for i in 0 .. n - 1 {
+					value := diff * norm.next(mut rng)
+					// i is in 0..gn.len; this fixed buffer cannot resize in the loop.
+					unsafe {
+						gn[i] = value
 					}
 				}
 				t1 := time.sys_mono_now()
 
 				mut s := 0.0
-				unsafe {
-					for i in 0 .. n - 1 {
-						s += gn[i]
-					}
+				for i in 0 .. n - 1 {
+					s += gn[i]
 				}
 				checksum += s
 				t2 := time.sys_mono_now()
@@ -354,21 +394,17 @@ fn main() {
 			}
 			.ou {
 				t0 := time.sys_mono_now()
-				unsafe {
-					mut x := 0.0
-					ou[0] = x
-					for i in 1 .. n {
-						x = a * x + b + gn[i - 1]
-						ou[i] = x
-					}
+				mut x := 0.0
+				ou[0] = x
+				for i in 1 .. n {
+					x = a * x + b + gn[i - 1]
+					ou[i] = x
 				}
 				t1 := time.sys_mono_now()
 
 				mut s := 0.0
-				unsafe {
-					for i in 0 .. n {
-						s += ou[i]
-					}
+				for i in 0 .. n {
+					s += ou[i]
 				}
 				checksum += s
 				t2 := time.sys_mono_now()

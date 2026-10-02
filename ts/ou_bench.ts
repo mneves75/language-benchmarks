@@ -1,7 +1,7 @@
 /*
   Unified OU benchmark (Bun / TypeScript)
 
-  Algorithms intentionally match the Rust/Zig/C versions in this repo:
+  Algorithms intentionally match all six implementations in this repository:
   - PRNG: xorshift128 (u32) seeded with splitmix32
   - Uniform: 53-bit double from two u32 draws
   - Normal: Marsaglia polar method with cached spare
@@ -20,49 +20,42 @@ type Args = {
   output: "text" | "json";
 };
 
+function decimal(value: string, maximum: bigint): bigint {
+  if (!/^[0-9]+$/.test(value)) throw new Error("expected decimal digits");
+  const parsed = BigInt(value);
+  if (parsed > maximum) throw new Error("integer out of range");
+  return parsed;
+}
+
 function parseArgs(argv: string[]): Args {
-  // Defaults match the blog's parameters.
   const args: Args = { n: 500_000, runs: 1000, warmup: 5, seed: 1, mode: "full", output: "text" };
-
   for (const raw of argv) {
-    if (!raw.startsWith("--")) continue;
-    const eq = raw.indexOf("=");
-    const key = eq >= 0 ? raw.slice(2, eq) : raw.slice(2);
-    const val = eq >= 0 ? raw.slice(eq + 1) : "";
-    const num = val.length ? Number(val) : NaN;
-
+    const match = /^--([a-z]+)=(.*)$/.exec(raw);
+    if (!match) throw new Error("expected a known --key=value option");
+    const [, key, val] = match;
     switch (key) {
       case "n":
-        if (!Number.isFinite(num) || num < 2) throw new Error("--n must be >= 2");
-        args.n = Math.floor(num);
-        break;
       case "runs":
-        if (!Number.isFinite(num) || num < 1) throw new Error("--runs must be >= 1");
-        args.runs = Math.floor(num);
+      case "warmup": {
+        const number = Number(decimal(val, 2147483647n));
+        const minimum = key === "n" ? 2 : key === "runs" ? 1 : 0;
+        if (number < minimum) throw new Error(`--${key} must be >= ${minimum}`);
+        args[key] = number;
         break;
-      case "warmup":
-        if (!Number.isFinite(num) || num < 0) throw new Error("--warmup must be >= 0");
-        args.warmup = Math.floor(num);
-        break;
+      }
       case "seed":
-        if (!Number.isFinite(num) || num < 0) throw new Error("--seed must be >= 0");
-        args.seed = Math.floor(num) >>> 0; // keep in u32 range
+        args.seed = Number(decimal(val, 18446744073709551615n) & 0xffffffffn);
         break;
       case "mode":
-        if (val !== "full" && val !== "gn" && val !== "ou") {
-          throw new Error("--mode must be full|gn|ou");
-        }
+        if (val !== "full" && val !== "gn" && val !== "ou") throw new Error("--mode must be full|gn|ou");
         args.mode = val;
         break;
       case "output":
-        if (val !== "text" && val !== "json") {
-          throw new Error("--output must be text|json");
-        }
+        if (val !== "text" && val !== "json") throw new Error("--output must be text|json");
         args.output = val;
         break;
       default:
-        // ignore unknown args
-        break;
+        throw new Error("unknown option: --" + key);
     }
   }
   return args;
@@ -70,7 +63,7 @@ function parseArgs(argv: string[]): Args {
 
 // ---- PRNG: splitmix32 seeding + xorshift128 ----
 
-function splitmix32_next(state: { s: number }): number {
+function splitmix32Next(state: { s: number }): number {
   // All arithmetic is 32-bit.
   state.s = (state.s + 0x9e3779b9) | 0;
   let z = state.s | 0;
@@ -89,10 +82,10 @@ class XorShift128 {
   constructor(seed: number) {
     // seed via splitmix32 into 4 non-zero-ish states
     const st = { s: seed | 0 };
-    this.x = splitmix32_next(st) | 0;
-    this.y = splitmix32_next(st) | 0;
-    this.z = splitmix32_next(st) | 0;
-    this.w = splitmix32_next(st) | 0;
+    this.x = splitmix32Next(st) | 0;
+    this.y = splitmix32Next(st) | 0;
+    this.z = splitmix32Next(st) | 0;
+    this.w = splitmix32Next(st) | 0;
 
     // Avoid the all-zero state (extremely unlikely, but possible).
     if ((this.x | this.y | this.z | this.w) === 0) {
@@ -124,6 +117,22 @@ class XorShift128 {
 class NormalPolar {
   private hasSpare = false;
   private spare = 0.0;
+
+  // Carry the unscaled spare across odd-sized fills.
+  fill(buffer: Float64Array, diff: number, rng: XorShift128): void {
+    let i = 0;
+    if (this.hasSpare && buffer.length > 0) {
+      buffer[i++] = diff * this.spare;
+      this.hasSpare = false;
+    }
+    while (i + 1 < buffer.length) {
+      buffer[i] = diff * this.nextStandard(rng);
+      buffer[i + 1] = diff * this.spare;
+      this.hasSpare = false;
+      i += 2;
+    }
+    if (i < buffer.length) buffer[i] = diff * this.nextStandard(rng);
+  }
 
   nextStandard(rng: XorShift128): number {
     if (this.hasSpare) {
@@ -170,9 +179,7 @@ function main(): void {
   if (mode === "ou") {
     const rngPrefill = new XorShift128(seed);
     const normPrefill = new NormalPolar();
-    for (let i = 0; i < n - 1; i++) {
-      gn[i] = diff * normPrefill.nextStandard(rngPrefill);
-    }
+    normPrefill.fill(gn, diff, rngPrefill);
   }
 
   // Warmup (JIT + caches)
@@ -182,9 +189,7 @@ function main(): void {
     for (let r = 0; r < warmup; r++) {
       let s = 0.0;
       if (mode === "full") {
-        for (let i = 0; i < n - 1; i++) {
-          gn[i] = diff * norm.nextStandard(rng);
-        }
+        norm.fill(gn, diff, rng);
         let x = 0.0;
         ou[0] = x;
         for (let i = 1; i < n; i++) {
@@ -193,9 +198,7 @@ function main(): void {
         }
         for (let i = 0; i < n; i++) s += ou[i];
       } else if (mode === "gn") {
-        for (let i = 0; i < n - 1; i++) {
-          gn[i] = diff * norm.nextStandard(rng);
-        }
+        norm.fill(gn, diff, rng);
         for (let i = 0; i < n - 1; i++) s += gn[i];
       } else {
         let x = 0.0;
@@ -227,7 +230,7 @@ function main(): void {
 
   let minMs = Number.POSITIVE_INFINITY;
   let maxMs = 0.0;
-  const runTimes: number[] = [];
+  const runTimes = new Float64Array(runs);
 
   let checksum = 0.0;
 
@@ -239,9 +242,7 @@ function main(): void {
 
     if (mode === "full") {
       const t0 = nowMs();
-      for (let i = 0; i < n - 1; i++) {
-        gn[i] = diff * norm.nextStandard(rng);
-      }
+      norm.fill(gn, diff, rng);
       const t1 = nowMs();
 
       let x = 0.0;
@@ -263,9 +264,7 @@ function main(): void {
       runMs = t3 - t0;
     } else if (mode === "gn") {
       const t0 = nowMs();
-      for (let i = 0; i < n - 1; i++) {
-        gn[i] = diff * norm.nextStandard(rng);
-      }
+      norm.fill(gn, diff, rng);
       const t1 = nowMs();
 
       let s = 0.0;
@@ -302,14 +301,14 @@ function main(): void {
     totalSimMs += simMs;
     totalChkMs += chkMs;
     totalMs += runMs;
-    runTimes.push(runMs);
+    runTimes[r] = runMs;
 
     if (runMs < minMs) minMs = runMs;
     if (runMs > maxMs) maxMs = runMs;
   }
 
   const avgMs = totalMs / runs;
-  runTimes.sort((a, b) => a - b);
+  runTimes.sort();
   const medianMs = runs % 2 === 1
     ? runTimes[Math.floor(runs / 2)]
     : (runTimes[runs / 2 - 1] + runTimes[runs / 2]) / 2;
@@ -340,4 +339,9 @@ function main(): void {
   }
 }
 
-main();
+try {
+  main();
+} catch (error: unknown) {
+  console.error(`error: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
+}

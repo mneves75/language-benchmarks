@@ -1,0 +1,83 @@
+{
+  "date": "2026-10-02",
+  "baseline_commit": "ef3c53038ca83a4769bac08efd3420d2c5ad8154",
+  "version": "1.4.0",
+  "platform": "macOS 27.2 arm64; Apple M5 Pro; 64 GB",
+  "paired_parameters": {
+    "n": 500000,
+    "runs": 200,
+    "warmup": 20,
+    "seed": 1,
+    "modes": [
+      "full",
+      "gn",
+      "ou"
+    ],
+    "repetitions": 5
+  },
+  "source_sha256": {
+    "build.sh": "0cb1f38c84d29d73091f72274c46d5fcaced1d65f7cc2e7681ebb139472fc597",
+    "run_all.sh": "ba74c3185203b2f92fec743ae2dde444e575d5080ee60e297a9b8a4461e198be",
+    "c/ou_bench.c": "3c3e603cac3a8e5d6b4d35c1f02f593007674795d3cca09901fc0e3f5bb076bd",
+    "rust/src/main.rs": "68be4b9ea6de3ef560413b877989b859a5de98bd2a3868113cde0f2282b24c06",
+    "rust/Cargo.toml": "4e7baa898a6ad115f725ecee673eb51cb1f450be421453d7834a63c901965dc3",
+    "rust/Cargo.lock": "89a04ebf49f36f577992877c98e01e7b92b9576bb4cd3c1dc5b9a417a5f1cb58",
+    "zig/ou_bench.zig": "4ec337393f29a0ab9e8d95247a2066c02dd6cf578867ee3c5301a448b274437c",
+    "swift/ou_bench.swift": "24f8f12ba7ff6992d987226e3ec25e8f5206b21470119bf2b1c6c8bd7b4ae928",
+    "v/ou_bench.v": "aae4932e9eea3cede03bde57a6a822a1908dced5076ac1ef69daa22977fce26d",
+    "ts/ou_bench.ts": "d4698a0822474ae1271376f2e04e3e0abd3310b882e077a17cdfb6a65a5e80b8",
+    "tests/check.py": "ff224d4837fb0c773ffec62e862d0ebe31b0ba9467b52f3a8c29ebe2b531ac85",
+    "DOCS/scripts/compare_runs.sh": "da848dc8e57bb21b55caf556ff6c058f0d9d84efca4c7d0223d9a3ae00e7b1b0",
+    "VERSION": "78b591400c56b7b67b8cb3b2b8a8e65e9093897f02ce0878e6b5405c68620fa7"
+  },
+  "candidate_artifacts": {
+    "c": {
+      "path": ".scratch/bin/c",
+      "sha256": "f06eaf0c78be06b38bdde884784540482fa824ea6db9a4630aadb08d352710d7",
+      "measured_sha256": [
+        "f06eaf0c78be06b38bdde884784540482fa824ea6db9a4630aadb08d352710d7"
+      ],
+      "matches_measurement": true
+    },
+    "rust": {
+      "path": ".scratch/bin/rust",
+      "sha256": "acb8f3c6621281b28b61e7dc93f7d03d564628acedc0250e149ee61b8e166b57",
+      "measured_sha256": [
+        "acb8f3c6621281b28b61e7dc93f7d03d564628acedc0250e149ee61b8e166b57"
+      ],
+      "matches_measurement": true
+    },
+    "zig": {
+      "path": ".scratch/bin/zig",
+      "sha256": "77d887873ea2ed6ffca8409f44b732eca6f20ca0dafba18b46a31a133d4e0f43",
+      "measured_sha256": [
+        "77d887873ea2ed6ffca8409f44b732eca6f20ca0dafba18b46a31a133d4e0f43"
+      ],
+      "matches_measurement": true
+    },
+    "swift": {
+      "path": ".scratch/bin/swift",
+      "sha256": "4d738a9b904cd7e791173f7394916f67673163fe23868b7df9507c0f17e21c33",
+      "measured_sha256": [
+        "4d738a9b904cd7e791173f7394916f67673163fe23868b7df9507c0f17e21c33"
+      ],
+      "matches_measurement": true
+    },
+    "v": {
+      "path": ".scratch/bin/v",
+      "sha256": "b96afe8e91933dbd8c832ef15eaa4d81090136e7da402e3474100ee7a19bc694",
+      "measured_sha256": [
+        "b96afe8e91933dbd8c832ef15eaa4d81090136e7da402e3474100ee7a19bc694"
+      ],
+      "matches_measurement": true
+    },
+    "ts": {
+      "path": "ts/ou_bench.ts",
+      "sha256": "d4698a0822474ae1271376f2e04e3e0abd3310b882e077a17cdfb6a65a5e80b8",
+      "measured_sha256": [
+        "d4698a0822474ae1271376f2e04e3e0abd3310b882e077a17cdfb6a65a5e80b8"
+      ],
+      "matches_measurement": true
+    }
+  }
+}

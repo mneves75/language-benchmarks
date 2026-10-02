@@ -1,147 +1,126 @@
-# Engineering Exec Spec: OU Benchmark Parity and Methodology Hardening
+# Engineering specification: six-language OU parity
 
-## Goal
-- Preserve algorithmic parity across C, Zig, Rust, Swift, and TypeScript (Bun runtime) while improving interpretability and repeatability.
-- Add narrowly scoped benchmark modes to separate RNG/normal generation cost from OU simulation cost.
-- Strengthen measurement practice without introducing heavy benchmarking frameworks.
+This document defines the numerical and measurement contract for the 1.4.0
+modernization. Build commands and CLI limits belong in the [README](../README.md).
+Verification results and measured observations belong in
+[the 2026 run record](Run-Record-2026-10-02.md); this specification does not
+itself assert that acceptance checks passed.
 
-## Non-goals
-- Changing the core OU algorithm, PRNG, or normal sampler.
-- Enforcing cross-language bit-identical floating point results.
-- Introducing external benchmark frameworks or CI benchmarking in this phase.
+## Goal and scope
 
-## Current State (Repo Review)
-- Five implementations align on PRNG (splitmix32 + xorshift128), Marsaglia polar, and Euler OU update.
-- Timing excludes argument parsing and allocation; per-run breakdown includes gen_normals, simulate, checksum.
-- Median, min, and max are reported in each language.
-- Bun run uses `Bun.gc(true)` before timed runs to reduce GC noise.
-- `run_all.sh` separates build and run phases and uses identical CLI flags.
+Maintain one workload across C, Zig, Rust, TypeScript/Bun, Swift, and V while
+improving hot-loop structure, CLI validation, reproducibility, and documentation.
 
-## Best-Practice Alignment (External)
-- Warmup runs stabilize caches/JITs before measurement.
-- Checksum readback reduces dead-code elimination risk.
-- Reporting median/min/max improves robustness vs mean-only reporting.
-- Optional GC before timed runs in managed runtimes.
+Do not replace the PRNG, normal sampler, Euler recurrence, time grid, checksum
+traversal, or timing boundaries. Exact transitions, alternate distributions,
+parallel paths, and SIMD/GPU variants require separately named experiments.
 
-## Proposed Approach (Options + Tradeoffs)
-Option A: Document-only tightening
-- Update README/CLAUDE with best-practice notes and hygiene tips.
-- Lowest risk; limited interpretability improvement.
+## Numerical invariants
 
-Option B: Add measurement modes + structured output + Swift (preferred)
-- Add `--mode=full|gn|ou` and `--output=text|json` across all languages.
-- Add Swift implementation with identical algorithms and output format.
-- Improves interpretability while keeping algorithm parity and light tooling.
-- Requires synchronized changes across languages and docs.
+- Expand the effective 32-bit seed using the existing SplitMix32 constants and
+  unsigned wrapping; initialize four xorshift128 words in order.
+- Preserve the xorshift128 shifts `11,19,8` and logical right shifts.
+- Construct each 53-bit uniform from two successive words, with 27 and 26 retained
+  bits, in `[0,1)`.
+- Accept Marsaglia polar points only when `0<s<1`; emit the first coordinate
+  before the second and preserve unscaled spare state.
+- Use `theta=1`, `mu=0`, `sigma=0.1`, `X[0]=0`, and `dt=1/n`.
+  Store `n` points from `n-1` updates; final time is `(n-1)/n`.
+- Preserve scalar recurrence and ordered checksum summation.
+- Restart stochastic state after warmup; continue it across timed generation runs.
 
-Option C: Integrate formal benchmarking frameworks
-- Highest statistical rigor.
-- Adds dependencies and breaks parity across languages.
+Identical integer streams are required. Cross-language bit-identical
+floating-point results are not a general promise; compare against the independent
+reference with documented tolerance and investigate unexplained drift.
 
-Decision: Option B.
+## Optimization decision
 
-## Architecture / Data Flow Changes
-- CLI parsing extends to:
-  - `--mode=full|gn|ou` (default `full`)
-    - `full`: current behavior.
-    - `gn`: generate normals only, checksum on `gn`.
-    - `ou`: prefill `gn`, time OU only, checksum on `ou`.
-  - `--output=text|json` (default `text`).
-- JSON output mirrors text fields and uses identical keys across languages.
-- Allocation boundaries and timing windows remain unchanged.
+Rust, Zig, TypeScript, and Swift fill normals in pairs while retaining an
+incoming spare and an odd trailing spare. This preserves the cached scalar stream
+and removes some calls and branches. It does not reduce logarithm/square-root
+count relative to cached scalar sampling. C and V retain scalar cached loops
+because paired-fill candidates slowed generation under matched build policy.
 
-## Phased Plan with Milestones
-Phase 0: Discovery and success metrics
-- Confirm default output remains backward compatible in `full` mode.
-- Success metric: `run_all.sh` text output fields unchanged.
+Zig explicitly inlines the fill helper to avoid an observed helper-call
+regression. V uses narrow unsafe blocks only around normal-buffer stores inside
+`0 .. n-1` loops. That range is exactly the fixed-size buffer's index range.
+Other array accesses remain ordinary.
+Generated C inspection showed general array setters in the fully checked fill;
+numeric checks and sanitizer validation are required for the scoped alternative.
 
-Phase 1: Mode support (gn/ou/full) + Swift
-- Add `mode` flag in all languages.
-- Add Swift implementation and wire into `run_all.sh`.
-- Update README/CLAUDE with new flags and examples.
-- Acceptance: `--mode=gn` and `--mode=ou` produce valid timings and checksums.
+Use storage and loop structure appropriate to each language, including typed
+numeric buffers in TypeScript. Allocate once outside measured work and reuse.
+Do not fuse checksum with simulation or silently relax floating-point semantics.
 
-Phase 2: Structured output and stability improvements
-- Add `--output=json` with identical keys across languages.
-- Replace O(runs^2) sort in C with `qsort`.
-- Route Zig output to stdout (Zig 0.15: `std.fs.File.stdout().deprecatedWriter()`).
-- Acceptance: JSON parses; text output remains identical.
+Rejected local candidates include paired filling in C and V, including both
+checked and narrowly unchecked V pair-fill helpers. They preserve the workload but were less suitable after measured
+regressions and generated-C inspection. The run record owns the comparison
+parameters, final repeated measurements, and validation outcomes.
 
-Phase 3: Reproducibility harness
-- Add template for recording hardware/software metadata and run parameters.
-- Provide a comparison script to diff JSON outputs across runs.
-- Acceptance: one recorded run includes CPU model, OS, and toolchain versions.
+Replacing the sampler or parallelizing paths is a different alternative: it may
+improve throughput but changes the workload or seeded sequence, so it cannot
+satisfy parity acceptance here.
 
-## Detailed Multi-Phase TODO (Engineer Checklist)
-Phase 0
-- [x] Inventory current CLI flags and outputs; capture baseline output format.
-- [x] Define parity success criteria (output keys and checksum stability).
+## CLI and runner
 
-Phase 1
-- [x] Add `--mode` parsing to `ts/ou_bench.ts`.
-- [x] Add `--mode` parsing to `rust/src/main.rs`.
-- [x] Add `--mode` parsing to `c/ou_bench.c`.
-- [x] Add `--mode` parsing to `zig/ou_bench.zig`.
-- [x] Add Swift implementation with identical algorithms and flags.
-- [x] Implement `gn`-only and `ou`-only branches with identical timing boundaries.
-- [x] Update `run_all.sh` to forward `--mode`.
-- [x] Update `README.md` and `CLAUDE.md` with new flags and examples.
+All implementations accept the same `--key=value` flags:
+`n`, `runs`, `warmup`, `seed`, `mode`, and `output`.
+Require nonempty decimal digits for integers, enforce documented bounds before
+narrowing/allocation, and reject unknown arguments.
 
-Phase 2
-- [x] Implement `--output=json` in all languages with identical field names.
-- [x] Switch C median sort to `qsort`.
-- [x] Route Zig output to stdout (Zig 0.15 compatible).
-- [x] Keep `--output=text` identical to prior output.
+The shared count ceiling is `2147483647`, matching V's signed 32-bit count
+representation. Minima are `n>=2`, `runs>=1`, and `warmup>=0`. These limits do
+not promise that every accepted request fits available memory or completes
+quickly. Repeated recognized keys use the last value.
 
-Phase 3
-- [x] Add `DOCS/Run-Record-Template.md`.
-- [x] Add `DOCS/scripts/compare_runs.sh`.
-- [x] Document variance guidance in README.
+Seeds accept the full unsigned 64-bit decimal range, then reduce modulo
+`2^32`. TypeScript must not route the unreduced seed through Number.
 
-## Testing Strategy
-- Manual run matrix:
-  - `run_all.sh` in `full` mode with defaults.
-  - Each language with `--mode=gn` and `--mode=ou`.
-  - JSON output validation (parse and key check).
-- Verify checksum stability within each language build.
-- Verify text output in `full` mode remains unchanged.
+The shared build script owns default optimized flags. Defaults avoid C/V
+fast-math and Swift unchecked optimization; Zig retains strict float semantics
+in ReleaseFast. This does not imply equivalent runtime safety across languages.
 
-## Observability
-- Stdout as primary output channel.
-- JSON output supports downstream parsing and diffing.
+The runner resolves paths from its own location. JSON mode emits one object per
+language on stdout, six JSON Lines records total. Build diagnostics go to stderr.
+Failures return nonzero rather than creating a partial successful-looking result.
 
-## Rollout Plan
-- Land Phase 1, verify outputs, then Phase 2, then Phase 3.
-- Each phase reversible by reverting the specific changes.
+## Timing contract
 
-## Rollback Plan
-- Revert to previous tag/commit; keep `full` mode as fallback.
+| Mode | Timed stages | Setup |
+|---|---|---|
+| `full` | Generate, simulate, checksum path | Allocate and warm up |
+| `gn` | Generate, checksum noise | Allocate and warm up |
+| `ou` | Simulate, checksum path | Allocate, prefill once, warm up |
 
-## Risks and Mitigations
-- Risk: parity drift across languages.
-  - Mitigation: update all five implementations in a single PR and use the checklist.
-- Risk: output format breakage.
-  - Mitigation: keep `--output=text` identical; add explicit acceptance checks.
-- Risk: performance impact from new branches.
-  - Mitigation: keep branch structure minimal and avoid extra allocations.
+Argument parsing, allocation, warmup, timing-sample sorting, and formatting remain
+outside timed computation. Output retains configuration, total seconds,
+average/median/min/max milliseconds, aggregate phase seconds, and checksum.
+Do not claim percentile or per-iteration output that is not provided.
 
-## Open Questions (Non-blocking)
-- Standardize numeric formatting precision across languages?
-- Add an alias flag (e.g., `--samples`) to align with common terminology?
+## Observable acceptance
 
-## Verification Log
-- `./run_all.sh 1000 3 1 1 full text`
-- `./run_all.sh 1000 2 1 1 gn json`
-- `./run_all.sh 1000 2 1 1 ou json`
-- `./run_all.sh` (defaults: n=500000 runs=1000 warmup=5 seed=1)
+Run the real-entry-point Python checks described in the README. They must cover
+all six implementations, all modes, independent numeric reference, odd/even
+noise counts, seed boundaries, warmup reset, JSON/text output, malformed input,
+overflow/range rejection, and script behavior outside the root directory.
 
-## References
-- Original article: https://rust-dd.com/post/crab-scientific-computing-benchmark-rust-crab-vs-zig-zap-vs-the-father-c-older_man
-- https://github.com/google/benchmark/blob/main/docs/user_guide.md
-- https://bheisler.github.io/criterion.rs/book/user_guide.html
-- https://bun.sh/docs/api/gc
+The regression evidence must include a failing control before implementation,
+final successful checks, and a negative control proving validation can fail.
+Do not substitute a checksum spot check for this matrix.
 
-## Status
-- Completed: mode/output flags in all languages, Swift implementation, JSON output, C qsort median, Zig stdout output.
-- Completed: `DOCS/Run-Record-Template.md` and `DOCS/scripts/compare_runs.sh`.
-- Last verified: 2025-12-19.
+Record exact toolchains, flags, parameters, Git identity, raw results, and
+repeated baseline/candidate measurements. No performance improvement is required
+by language reputation or inferred solely from cleaner source.
+
+Complete the requested independent review and verification before delivery.
+Keep failures and unrun checks explicit in the evidence record.
+
+## Measurement limits
+
+Fixed execution order, thermal drift, JIT state, math libraries, native CPU
+features, timer overhead, and runtime allocation can affect results. Do not
+compare historical fast-math/unchecked artifacts with strict candidates and
+attribute the entire gap to a source optimization.
+
+The [methodology chapter](learn/09-benchmarking-methodology.md) explains these
+limits. The [2025 record](Run-Record-2025-12-19.md) remains historical.

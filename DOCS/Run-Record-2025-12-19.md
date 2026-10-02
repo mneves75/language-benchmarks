@@ -1,5 +1,8 @@
 # Benchmark Run Record
 
+Historical record, preserved verbatim below. Use [the 2026 record](Run-Record-2026-10-02.md)
+for current source/toolchains; these numbers do not establish current performance.
+
 ## Environment
 - Date/time (local): 2025-12-19
 - Hostname: 192.168.0.19

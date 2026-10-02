@@ -1,7 +1,7 @@
 /*
   Unified OU benchmark (C)
 
-  Algorithms intentionally match TS/Rust/Zig in this repo:
+  Algorithms intentionally match all six implementations in this repository:
   - PRNG: xorshift128 (u32) seeded via splitmix32
   - Uniform: 53-bit double from two u32 draws
   - Normal: Marsaglia polar method with cached spare
@@ -16,6 +16,8 @@
 
 #define _POSIX_C_SOURCE 199309L
 #include <stdint.h>
+#include <errno.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -101,7 +103,10 @@ static inline double normal_polar_next(normal_polar_t *n, xorshift128_t *rng) {
 
 static inline uint64_t now_ns(void) {
     struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        perror("clock_gettime");
+        exit(1);
+    }
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
 
@@ -125,46 +130,54 @@ enum {
     OUTPUT_JSON = 1
 };
 
-static args_t parse_args(int argc, char **argv) {
-    args_t a;
-    a.n = 500000;
-    a.runs = 1000;
-    a.warmup = 5;
-    a.seed = 1;
-    a.mode = MODE_FULL;
-    a.output = OUTPUT_TEXT;
+static void fail(const char *message) {
+    fprintf(stderr, "error: %s\n", message);
+    exit(1);
+}
 
+static uint64_t parse_uint(const char *value, uint64_t maximum) {
+    if (*value == '\0') fail("expected decimal digits");
+    for (const char *p = value; *p; ++p) {
+        if (*p < '0' || *p > '9') fail("expected decimal digits");
+    }
+    errno = 0;
+    char *end;
+    unsigned long long parsed = strtoull(value, &end, 10);
+    if (errno == ERANGE || *end || parsed > maximum) fail("integer out of range");
+    return (uint64_t)parsed;
+}
+
+static args_t parse_args(int argc, char **argv) {
+    args_t a = {500000, 1000, 5, 1, MODE_FULL, OUTPUT_TEXT};
     for (int i = 1; i < argc; i++) {
         const char *s = argv[i];
         if (strncmp(s, "--n=", 4) == 0) {
-            long long v = atoll(s + 4);
-            if (v < 2) { fprintf(stderr, "--n must be >= 2\n"); exit(1); }
-            a.n = (size_t)v;
+            a.n = (size_t)parse_uint(s + 4, INT32_MAX);
+            if (a.n < 2) fail("--n must be >= 2");
         } else if (strncmp(s, "--runs=", 7) == 0) {
-            long long v = atoll(s + 7);
-            if (v < 1) { fprintf(stderr, "--runs must be >= 1\n"); exit(1); }
-            a.runs = (size_t)v;
+            a.runs = (size_t)parse_uint(s + 7, INT32_MAX);
+            if (a.runs < 1) fail("--runs must be >= 1");
         } else if (strncmp(s, "--warmup=", 9) == 0) {
-            long long v = atoll(s + 9);
-            if (v < 0) { fprintf(stderr, "--warmup must be >= 0\n"); exit(1); }
-            a.warmup = (size_t)v;
+            a.warmup = (size_t)parse_uint(s + 9, INT32_MAX);
         } else if (strncmp(s, "--seed=", 7) == 0) {
-            unsigned long long v = strtoull(s + 7, NULL, 10);
-            a.seed = (uint32_t)(v & 0xFFFFFFFFu);
+            a.seed = (uint32_t)parse_uint(s + 7, UINT64_MAX);
         } else if (strncmp(s, "--mode=", 7) == 0) {
             const char *v = s + 7;
             if (strcmp(v, "full") == 0) a.mode = MODE_FULL;
             else if (strcmp(v, "gn") == 0) a.mode = MODE_GN;
             else if (strcmp(v, "ou") == 0) a.mode = MODE_OU;
-            else { fprintf(stderr, "--mode must be full|gn|ou\n"); exit(1); }
+            else fail("--mode must be full|gn|ou");
         } else if (strncmp(s, "--output=", 9) == 0) {
             const char *v = s + 9;
             if (strcmp(v, "text") == 0) a.output = OUTPUT_TEXT;
             else if (strcmp(v, "json") == 0) a.output = OUTPUT_JSON;
-            else { fprintf(stderr, "--output must be text|json\n"); exit(1); }
+            else fail("--output must be text|json");
+        } else {
+            fail("expected a known --key=value option");
         }
     }
-
+    if (a.n > SIZE_MAX / sizeof(double) || a.runs > SIZE_MAX / sizeof(double))
+        fail("allocation size overflow");
     return a;
 }
 
@@ -192,6 +205,8 @@ int main(int argc, char **argv) {
     double *gn = (double*)malloc((n - 1) * sizeof(double));
     double *ou = (double*)malloc(n * sizeof(double));
     if (!gn || !ou) {
+        free(gn);
+        free(ou);
         fprintf(stderr, "allocation failed\n");
         return 1;
     }
@@ -256,6 +271,8 @@ int main(int argc, char **argv) {
     double max_s = 0.0;
     double *run_times = (double*)malloc(args.runs * sizeof(double));
     if (!run_times) {
+        free(gn);
+        free(ou);
         fprintf(stderr, "allocation failed\n");
         return 1;
     }

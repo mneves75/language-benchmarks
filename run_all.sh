@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+if (( $# > 6 )); then
+  echo "usage: $0 [n] [runs] [warmup] [seed] [mode] [output]" >&2
+  exit 1
+fi
 
 N="${1:-500000}"
 RUNS="${2:-1000}"
@@ -8,51 +14,12 @@ SEED="${4:-1}"
 MODE="${5:-full}"
 OUTPUT="${6:-text}"
 
-echo "=== Building all benchmarks ==="
-echo
-
-echo "Building Rust..."
-( cd rust && RUSTFLAGS="-C target-cpu=native" cargo build --release --quiet )
-
-echo "Building C..."
-( cd c && cc -O3 -ffast-math -march=native -fno-math-errno -fno-trapping-math -std=c11 ou_bench.c -lm -o ou_bench_c )
-
-echo "Building Zig..."
-( cd zig && zig build-exe ou_bench.zig -O ReleaseFast -mcpu=native -fstrip -femit-bin=ou_bench 2>/dev/null )
-
-echo "Building Swift..."
-( cd swift && swiftc -Ounchecked -whole-module-optimization ou_bench.swift -o ou_bench_swift )
-
-echo "Building V..."
-( cd v && v -prod -cstrict -cc gcc -skip-unused -cflags '-O3 -ffast-math -march=native -fno-math-errno -fno-trapping-math' ou_bench.v )
-
-echo
-echo "=== Running benchmarks ==="
-echo "n=$N runs=$RUNS warmup=$WARMUP seed=$SEED"
-if [[ "$MODE" != "full" || "$OUTPUT" != "text" ]]; then
-  echo "mode=$MODE output=$OUTPUT"
+if [[ "${BENCH_SKIP_BUILD:-0}" != "1" ]]; then
+  bash "$ROOT/build.sh"
 fi
-echo
 
-echo "[TypeScript/Bun]"
-( cd ts && bun run ou_bench.ts --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
-echo
-
-echo "[Rust]"
-( cd rust && ./target/release/ou_bench_unified --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
-echo
-
-echo "[C]"
-( cd c && ./ou_bench_c --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
-echo
-
-echo "[Zig]"
-( cd zig && ./ou_bench --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
-
-echo "[Swift]"
-( cd swift && ./ou_bench_swift --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
-echo
-
-echo "[V]"
-( cd v && ./ou_bench --n="$N" --runs="$RUNS" --warmup="$WARMUP" --seed="$SEED" --mode="$MODE" --output="$OUTPUT" )
-echo
+args=("--n=$N" "--runs=$RUNS" "--warmup=$WARMUP" "--seed=$SEED" "--mode=$MODE" "--output=$OUTPUT")
+"${BUN:-bun}" run "$ROOT/ts/ou_bench.ts" "${args[@]}"
+for language in rust c zig swift v; do
+  "$ROOT/.scratch/bin/$language" "${args[@]}"
+done

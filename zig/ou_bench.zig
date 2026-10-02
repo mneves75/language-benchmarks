@@ -1,6 +1,6 @@
 // Unified OU benchmark (Zig)
 //
-// Algorithms intentionally match TS/Rust/C in this repo:
+// Algorithms intentionally match all six implementations in this repository:
 // - PRNG: xorshift128 (u32) seeded via splitmix32
 // - Uniform: 53-bit double from two u32 draws
 // - Normal: Marsaglia polar method with cached spare
@@ -26,42 +26,45 @@ const Args = struct {
 const Mode = enum { full, gn, ou };
 const Output = enum { text, json };
 
-fn parseArgs(allocator: std.mem.Allocator) !Args {
+fn decimal(value: []const u8, maximum: u64) !u64 {
+    if (value.len == 0) return error.ExpectedDecimalDigits;
+    for (value) |c| {
+        if (c < '0' or c > '9') return error.ExpectedDecimalDigits;
+    }
+    const number = try std.fmt.parseInt(u64, value, 10);
+    if (number > maximum) return error.IntegerOutOfRange;
+    return number;
+}
+
+fn parseArgs(argv: []const [:0]const u8) !Args {
     var out = Args{};
-    const argv = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, argv);
 
     var i: usize = 1;
     while (i < argv.len) : (i += 1) {
         const a = argv[i];
-        if (!std.mem.startsWith(u8, a, "--")) continue;
+        if (!std.mem.startsWith(u8, a, "--")) return error.UnknownOption;
 
         if (std.mem.startsWith(u8, a, "--n=")) {
-            const v = try std.fmt.parseInt(usize, a[4..], 10);
+            const v = try decimal(a[4..], 2147483647);
             if (v < 2) return error.InvalidN;
-            out.n = v;
+            out.n = @intCast(v);
         } else if (std.mem.startsWith(u8, a, "--runs=")) {
-            const v = try std.fmt.parseInt(usize, a[7..], 10);
+            const v = try decimal(a[7..], 2147483647);
             if (v < 1) return error.InvalidRuns;
-            out.runs = v;
+            out.runs = @intCast(v);
         } else if (std.mem.startsWith(u8, a, "--warmup=")) {
-            const v = try std.fmt.parseInt(usize, a[9..], 10);
-            out.warmup = v;
+            const v = try decimal(a[9..], 2147483647);
+            out.warmup = @intCast(v);
         } else if (std.mem.startsWith(u8, a, "--seed=")) {
-            const v = try std.fmt.parseInt(u64, a[7..], 10);
+            const v = try decimal(a[7..], std.math.maxInt(u64));
             out.seed = @as(u32, @intCast(v & 0xFFFF_FFFF));
         } else if (std.mem.startsWith(u8, a, "--mode=")) {
             const v = a[7..];
-            if (std.mem.eql(u8, v, "full")) out.mode = .full
-            else if (std.mem.eql(u8, v, "gn")) out.mode = .gn
-            else if (std.mem.eql(u8, v, "ou")) out.mode = .ou
-            else return error.InvalidMode;
+            if (std.mem.eql(u8, v, "full")) out.mode = .full else if (std.mem.eql(u8, v, "gn")) out.mode = .gn else if (std.mem.eql(u8, v, "ou")) out.mode = .ou else return error.InvalidMode;
         } else if (std.mem.startsWith(u8, a, "--output=")) {
             const v = a[9..];
-            if (std.mem.eql(u8, v, "text")) out.output = .text
-            else if (std.mem.eql(u8, v, "json")) out.output = .json
-            else return error.InvalidOutput;
-        }
+            if (std.mem.eql(u8, v, "text")) out.output = .text else if (std.mem.eql(u8, v, "json")) out.output = .json else return error.InvalidOutput;
+        } else return error.UnknownOption;
     }
 
     return out;
@@ -120,6 +123,21 @@ const NormalPolar = struct {
     has_spare: bool = false,
     spare: f64 = 0.0,
 
+    inline fn fill(self: *NormalPolar, buffer: []f64, diff: f64, rng: *XorShift128) void {
+        var i: usize = 0;
+        if (self.has_spare and buffer.len > 0) {
+            buffer[i] = diff * self.spare;
+            i += 1;
+            self.has_spare = false;
+        }
+        while (i + 1 < buffer.len) : (i += 2) {
+            buffer[i] = diff * self.next(rng);
+            buffer[i + 1] = diff * self.spare;
+            self.has_spare = false;
+        }
+        if (i < buffer.len) buffer[i] = diff * self.next(rng);
+    }
+
     inline fn next(self: *NormalPolar, rng: *XorShift128) f64 {
         if (self.has_spare) {
             self.has_spare = false;
@@ -139,13 +157,15 @@ const NormalPolar = struct {
     }
 };
 
-inline fn nowNs() i128 {
-    return std.time.nanoTimestamp();
+inline fn nowNs(io: std.Io) i96 {
+    return std.Io.Clock.awake.now(io).nanoseconds;
 }
 
-pub fn main() !void {
-    const allocator = std.heap.page_allocator;
-    const args = try parseArgs(allocator);
+fn benchmark(init: std.process.Init) !void {
+    @setFloatMode(.strict);
+    const allocator = init.gpa;
+    const io = init.io;
+    const args = try parseArgs(try init.minimal.args.toSlice(init.arena.allocator()));
 
     const T: f64 = 1.0;
     const theta: f64 = 1.0;
@@ -159,7 +179,7 @@ pub fn main() !void {
     const b: f64 = theta * mu * dt;
     const diff: f64 = sigma * @sqrt(dt);
 
-    var gn = try allocator.alloc(f64, n - 1);
+    const gn = try allocator.alloc(f64, n - 1);
     defer allocator.free(gn);
     var ou = try allocator.alloc(f64, n);
     defer allocator.free(ou);
@@ -167,10 +187,7 @@ pub fn main() !void {
     if (args.mode == .ou) {
         var rng_prefill = XorShift128.init(args.seed);
         var norm_prefill = NormalPolar{};
-        var i: usize = 0;
-        while (i < n - 1) : (i += 1) {
-            gn[i] = diff * norm_prefill.next(&rng_prefill);
-        }
+        norm_prefill.fill(gn, diff, &rng_prefill);
     }
 
     // Warmup
@@ -182,10 +199,8 @@ pub fn main() !void {
             var s: f64 = 0.0;
             switch (args.mode) {
                 .full => {
+                    norm.fill(gn, diff, &rng);
                     var i: usize = 0;
-                    while (i < n - 1) : (i += 1) {
-                        gn[i] = diff * norm.next(&rng);
-                    }
 
                     var x: f64 = 0.0;
                     ou[0] = x;
@@ -201,10 +216,8 @@ pub fn main() !void {
                     }
                 },
                 .gn => {
+                    norm.fill(gn, diff, &rng);
                     var i: usize = 0;
-                    while (i < n - 1) : (i += 1) {
-                        gn[i] = diff * norm.next(&rng);
-                    }
 
                     i = 0;
                     while (i < n - 1) : (i += 1) {
@@ -257,13 +270,11 @@ pub fn main() !void {
 
         switch (args.mode) {
             .full => {
-                const t0 = nowNs();
+                const t0 = nowNs(io);
 
+                norm.fill(gn, diff, &rng);
                 var i: usize = 0;
-                while (i < n - 1) : (i += 1) {
-                    gn[i] = diff * norm.next(&rng);
-                }
-                const t1 = nowNs();
+                const t1 = nowNs(io);
 
                 var x: f64 = 0.0;
                 ou[0] = x;
@@ -272,7 +283,7 @@ pub fn main() !void {
                     x = a * x + b + gn[i - 1];
                     ou[i] = x;
                 }
-                const t2 = nowNs();
+                const t2 = nowNs(io);
 
                 var s: f64 = 0.0;
                 i = 0;
@@ -280,7 +291,7 @@ pub fn main() !void {
                     s += ou[i];
                 }
                 checksum += s;
-                const t3 = nowNs();
+                const t3 = nowNs(io);
 
                 gen = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
                 sim = @as(f64, @floatFromInt(t2 - t1)) * 1e-9;
@@ -288,13 +299,11 @@ pub fn main() !void {
                 run = @as(f64, @floatFromInt(t3 - t0)) * 1e-9;
             },
             .gn => {
-                const t0 = nowNs();
+                const t0 = nowNs(io);
 
+                norm.fill(gn, diff, &rng);
                 var i: usize = 0;
-                while (i < n - 1) : (i += 1) {
-                    gn[i] = diff * norm.next(&rng);
-                }
-                const t1 = nowNs();
+                const t1 = nowNs(io);
 
                 var s: f64 = 0.0;
                 i = 0;
@@ -302,7 +311,7 @@ pub fn main() !void {
                     s += gn[i];
                 }
                 checksum += s;
-                const t2 = nowNs();
+                const t2 = nowNs(io);
 
                 gen = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
                 sim = 0.0;
@@ -310,7 +319,7 @@ pub fn main() !void {
                 run = @as(f64, @floatFromInt(t2 - t0)) * 1e-9;
             },
             .ou => {
-                const t0 = nowNs();
+                const t0 = nowNs(io);
 
                 var x: f64 = 0.0;
                 ou[0] = x;
@@ -319,7 +328,7 @@ pub fn main() !void {
                     x = a * x + b + gn[i - 1];
                     ou[i] = x;
                 }
-                const t1 = nowNs();
+                const t1 = nowNs(io);
 
                 var s: f64 = 0.0;
                 i = 0;
@@ -327,7 +336,7 @@ pub fn main() !void {
                     s += ou[i];
                 }
                 checksum += s;
-                const t2 = nowNs();
+                const t2 = nowNs(io);
 
                 gen = 0.0;
                 sim = @as(f64, @floatFromInt(t1 - t0)) * 1e-9;
@@ -358,7 +367,11 @@ pub fn main() !void {
     const min_ms = min_s * 1000.0;
     const max_ms = max_s * 1000.0;
 
-    var stdout = std.fs.File.stdout().deprecatedWriter();
+    var output_buffer: [4096]u8 = undefined;
+    // Streaming preserves the shared offset when the runner redirects stdout to a file.
+    var file_writer = std.Io.File.stdout().writerStreaming(io, &output_buffer);
+    const stdout = &file_writer.interface;
+
     const mode_str = switch (args.mode) {
         .full => "full",
         .gn => "gn",
@@ -388,9 +401,17 @@ pub fn main() !void {
     } else {
         try stdout.print("== OU benchmark (Zig, unified algorithms) ==\n", .{});
         try stdout.print("n={} runs={} warmup={} seed={}\n", .{ args.n, args.runs, args.warmup, args.seed });
-        try stdout.print("total_s={d:.6}\n", .{ total_s });
+        try stdout.print("total_s={d:.6}\n", .{total_s});
         try stdout.print("avg_ms={d:.6} median_ms={d:.6} min_ms={d:.6} max_ms={d:.6}\n", .{ avg_ms, median_ms, min_ms, max_ms });
         try stdout.print("breakdown_s gen_normals={d:.6} simulate={d:.6} checksum={d:.6}\n", .{ total_gen_s, total_sim_s, total_chk_s });
-        try stdout.print("checksum={d:.17}\n", .{ checksum });
+        try stdout.print("checksum={d:.17}\n", .{checksum});
     }
+    try stdout.flush();
+}
+
+pub fn main(init: std.process.Init) void {
+    benchmark(init) catch |err| {
+        std.debug.print("error: {s}\n", .{@errorName(err)});
+        std.process.exit(1);
+    };
 }

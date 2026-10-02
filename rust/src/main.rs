@@ -47,11 +47,7 @@ impl XorShift128 {
         self.x = self.y;
         self.y = self.z;
         self.z = self.w;
-        self.w = self
-            .w
-            ^ (self.w >> 19)
-            ^ t
-            ^ (t >> 8);
+        self.w = self.w ^ (self.w >> 19) ^ t ^ (t >> 8);
         self.w
     }
 
@@ -76,6 +72,24 @@ impl NormalPolar {
         Self {
             has_spare: false,
             spare: 0.0,
+        }
+    }
+
+    fn fill(&mut self, buffer: &mut [f64], diff: f64, rng: &mut XorShift128) {
+        let mut rest = buffer;
+        if self.has_spare && !rest.is_empty() {
+            rest[0] = diff * self.spare;
+            self.has_spare = false;
+            rest = &mut rest[1..];
+        }
+        let (pairs, tail) = rest.as_chunks_mut::<2>();
+        for pair in pairs {
+            pair[0] = diff * self.next_standard(rng);
+            pair[1] = diff * self.spare;
+            self.has_spare = false;
+        }
+        if let Some(last) = tail.first_mut() {
+            *last = diff * self.next_standard(rng);
         }
     }
 
@@ -123,7 +137,18 @@ enum Output {
     Json,
 }
 
-fn parse_args() -> Args {
+fn decimal(value: &str, maximum: u64) -> Result<u64, String> {
+    if value.is_empty() || !value.bytes().all(|c| c.is_ascii_digit()) {
+        return Err("expected decimal digits".into());
+    }
+    let number = value.parse::<u64>().map_err(|_| "integer out of range")?;
+    if number > maximum {
+        return Err("integer out of range".into());
+    }
+    Ok(number)
+}
+
+fn parse_args() -> Result<Args, String> {
     let mut out = Args {
         n: 500_000,
         runs: 1000,
@@ -132,59 +157,51 @@ fn parse_args() -> Args {
         mode: Mode::Full,
         output: Output::Text,
     };
-
     for arg in env::args().skip(1) {
-        if !arg.starts_with("--") {
-            continue;
-        }
-        let (k, v) = match arg.split_once('=') {
-            Some((k, v)) => (&k[2..], v),
-            None => (&arg[2..], ""),
-        };
-
-        match k {
-            "n" => {
-                let n: usize = v.parse().expect("--n must be an integer");
-                assert!(n >= 2, "--n must be >= 2");
-                out.n = n;
+        let (key, value) = arg.split_once('=').ok_or("expected --key=value")?;
+        match key {
+            "--n" | "--runs" | "--warmup" => {
+                let number = decimal(value, i32::MAX as u64)? as usize;
+                match key {
+                    "--n" if number >= 2 => out.n = number,
+                    "--runs" if number >= 1 => out.runs = number,
+                    "--warmup" => out.warmup = number,
+                    _ => return Err("n must be >= 2 and runs must be >= 1".into()),
+                }
             }
-            "runs" => {
-                let runs: usize = v.parse().expect("--runs must be an integer");
-                assert!(runs >= 1, "--runs must be >= 1");
-                out.runs = runs;
-            }
-            "warmup" => {
-                let warmup: usize = v.parse().expect("--warmup must be an integer");
-                out.warmup = warmup;
-            }
-            "seed" => {
-                let seed_u64: u64 = v.parse().expect("--seed must be an integer");
-                out.seed = (seed_u64 & 0xFFFF_FFFF) as u32;
-            }
-            "mode" => {
-                out.mode = match v {
+            "--seed" => out.seed = decimal(value, u64::MAX)? as u32,
+            "--mode" => {
+                out.mode = match value {
                     "full" => Mode::Full,
                     "gn" => Mode::Gn,
                     "ou" => Mode::Ou,
-                    _ => panic!("--mode must be full|gn|ou"),
-                };
+                    _ => return Err("--mode must be full|gn|ou".into()),
+                }
             }
-            "output" => {
-                out.output = match v {
+            "--output" => {
+                out.output = match value {
                     "text" => Output::Text,
                     "json" => Output::Json,
-                    _ => panic!("--output must be text|json"),
-                };
+                    _ => return Err("--output must be text|json".into()),
+                }
             }
-            _ => {}
+            _ => return Err("unknown option".into()),
         }
     }
-
-    out
+    Ok(out)
 }
 
-fn main() {
-    let args = parse_args();
+fn buffer(len: usize) -> Result<Vec<f64>, String> {
+    let mut values = Vec::new();
+    values
+        .try_reserve_exact(len)
+        .map_err(|error| format!("allocation failed: {error}"))?;
+    values.resize(len, 0.0);
+    Ok(values)
+}
+
+fn benchmark() -> Result<(), String> {
+    let args = parse_args()?;
 
     let t = 1.0_f64;
     let theta = 1.0_f64;
@@ -198,15 +215,13 @@ fn main() {
     let b = theta * mu * dt;
     let diff = sigma * dt.sqrt();
 
-    let mut gn = vec![0.0_f64; n - 1];
-    let mut ou = vec![0.0_f64; n];
+    let mut gn = buffer(n - 1)?;
+    let mut ou = buffer(n)?;
 
     if let Mode::Ou = args.mode {
         let mut rng_prefill = XorShift128::new(args.seed);
         let mut norm_prefill = NormalPolar::new();
-        for i in 0..(n - 1) {
-            gn[i] = diff * norm_prefill.next_standard(&mut rng_prefill);
-        }
+        norm_prefill.fill(&mut gn, diff, &mut rng_prefill);
     }
 
     // Warmup
@@ -217,38 +232,34 @@ fn main() {
             let mut s = 0.0_f64;
             match args.mode {
                 Mode::Full => {
-                    for i in 0..(n - 1) {
-                        gn[i] = diff * norm.next_standard(&mut rng);
-                    }
+                    norm.fill(&mut gn, diff, &mut rng);
 
                     let mut x = 0.0_f64;
                     ou[0] = x;
-                    for i in 1..n {
-                        x = a * x + b + gn[i - 1];
-                        ou[i] = x;
+                    for (slot, increment) in ou[1..].iter_mut().zip(&gn) {
+                        x = a * x + b + increment;
+                        *slot = x;
                     }
 
-                    for v in &ou {
+                    for v in std::hint::black_box(&ou) {
                         s += *v;
                     }
                 }
                 Mode::Gn => {
-                    for i in 0..(n - 1) {
-                        gn[i] = diff * norm.next_standard(&mut rng);
-                    }
-                    for v in &gn {
+                    norm.fill(&mut gn, diff, &mut rng);
+                    for v in std::hint::black_box(&gn) {
                         s += *v;
                     }
                 }
                 Mode::Ou => {
                     let mut x = 0.0_f64;
                     ou[0] = x;
-                    for i in 1..n {
-                        x = a * x + b + gn[i - 1];
-                        ou[i] = x;
+                    for (slot, increment) in ou[1..].iter_mut().zip(&gn) {
+                        x = a * x + b + increment;
+                        *slot = x;
                     }
 
-                    for v in &ou {
+                    for v in std::hint::black_box(&ou) {
                         s += *v;
                     }
                 }
@@ -270,55 +281,51 @@ fn main() {
 
     let mut min_s = f64::INFINITY;
     let mut max_s = 0.0_f64;
-    let mut run_times: Vec<f64> = Vec::with_capacity(args.runs);
+    let mut run_times = buffer(args.runs)?;
 
     let mut checksum = 0.0_f64;
 
-    for _ in 0..args.runs {
-        let (gen, sim, chk, run);
+    for time in &mut run_times {
+        let (generation, sim, chk, run);
         match args.mode {
             Mode::Full => {
                 let t0 = Instant::now();
-                for i in 0..(n - 1) {
-                    gn[i] = diff * norm.next_standard(&mut rng);
-                }
+                norm.fill(&mut gn, diff, &mut rng);
                 let t1 = Instant::now();
 
                 let mut x = 0.0_f64;
                 ou[0] = x;
-                for i in 1..n {
-                    x = a * x + b + gn[i - 1];
-                    ou[i] = x;
+                for (slot, increment) in ou[1..].iter_mut().zip(&gn) {
+                    x = a * x + b + increment;
+                    *slot = x;
                 }
                 let t2 = Instant::now();
 
                 let mut s = 0.0_f64;
-                for v in &ou {
+                for v in std::hint::black_box(&ou) {
                     s += *v;
                 }
                 checksum += s;
                 let t3 = Instant::now();
 
-                gen = t1.duration_since(t0).as_secs_f64();
+                generation = t1.duration_since(t0).as_secs_f64();
                 sim = t2.duration_since(t1).as_secs_f64();
                 chk = t3.duration_since(t2).as_secs_f64();
                 run = t3.duration_since(t0).as_secs_f64();
             }
             Mode::Gn => {
                 let t0 = Instant::now();
-                for i in 0..(n - 1) {
-                    gn[i] = diff * norm.next_standard(&mut rng);
-                }
+                norm.fill(&mut gn, diff, &mut rng);
                 let t1 = Instant::now();
 
                 let mut s = 0.0_f64;
-                for v in &gn {
+                for v in std::hint::black_box(&gn) {
                     s += *v;
                 }
                 checksum += s;
                 let t2 = Instant::now();
 
-                gen = t1.duration_since(t0).as_secs_f64();
+                generation = t1.duration_since(t0).as_secs_f64();
                 sim = 0.0_f64;
                 chk = t2.duration_since(t1).as_secs_f64();
                 run = t2.duration_since(t0).as_secs_f64();
@@ -327,31 +334,31 @@ fn main() {
                 let t0 = Instant::now();
                 let mut x = 0.0_f64;
                 ou[0] = x;
-                for i in 1..n {
-                    x = a * x + b + gn[i - 1];
-                    ou[i] = x;
+                for (slot, increment) in ou[1..].iter_mut().zip(&gn) {
+                    x = a * x + b + increment;
+                    *slot = x;
                 }
                 let t1 = Instant::now();
 
                 let mut s = 0.0_f64;
-                for v in &ou {
+                for v in std::hint::black_box(&ou) {
                     s += *v;
                 }
                 checksum += s;
                 let t2 = Instant::now();
 
-                gen = 0.0_f64;
+                generation = 0.0_f64;
                 sim = t1.duration_since(t0).as_secs_f64();
                 chk = t2.duration_since(t1).as_secs_f64();
                 run = t2.duration_since(t0).as_secs_f64();
             }
         }
 
-        total_gen_s += gen;
+        total_gen_s += generation;
         total_sim_s += sim;
         total_chk_s += chk;
         total_s += run;
-        run_times.push(run);
+        *time = run;
 
         if run < min_s {
             min_s = run;
@@ -361,7 +368,7 @@ fn main() {
         }
     }
 
-    run_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    run_times.sort_unstable_by(f64::total_cmp);
     let median_s = if args.runs % 2 == 1 {
         run_times[args.runs / 2]
     } else {
@@ -415,6 +422,17 @@ fn main() {
                 total_gen_s, total_sim_s, total_chk_s
             );
             println!("checksum={:.17}", checksum);
+        }
+    }
+    Ok(())
+}
+
+fn main() -> std::process::ExitCode {
+    match benchmark() {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("error: {error}");
+            std::process::ExitCode::FAILURE
         }
     }
 }

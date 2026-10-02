@@ -1,56 +1,63 @@
-# Repository Guidelines
+# Repository guidelines
 
-## Project Structure & Module Organization
+This repository implements one OU workload in C, Rust, Zig, Swift, V, and
+TypeScript/Bun. Read [README.md](README.md) for CLI/build policy and
+[DOCS/Engineering-Exec-Spec.md](DOCS/Engineering-Exec-Spec.md) for numerical invariants.
 
-- `ts/`, `rust/`, `zig/`, `c/`, `swift/`: language-specific implementations of the same OU benchmark (keep algorithms aligned across languages).
-- `run_all.sh`: convenience script that builds/runs all implementations with the same parameters.
-- `DOCS/`: background notes and analysis (non-code documentation).
-- `README.md` and `CLAUDE.md`: usage and methodology notes; update if you change the algorithm or CLI flags.
-- Build artifacts (e.g., `c/ou_bench_c`, `zig/ou_bench`, `swift/ou_bench_swift`) are generated locally and should not be edited by hand.
+## Structure and ownership
 
-## Build, Test, and Development Commands
+- `c/`, `rust/`, `zig/`, `swift/`, `v/`, `ts/`: six source implementations.
+- `build.sh`: authoritative optimized compiler commands; outputs `.scratch/bin/`.
+- `run_all.sh`: common parameters, six result records; build messages on stderr.
+- `tests/check.py`: dependency-free Python E2E suite through real executables.
+- `DOCS/learn/`: tutorials; `DOCS/results/`: dated, reproducible raw measurements.
+- `VERSION`, Cargo package version, README, and CHANGELOG move together.
+- Build products and large local evidence belong in ignored `.scratch/` or `rust/target/`.
+  Never treat the legacy tracked `v/ou_bench` executable as current source evidence.
 
-- Run everything with shared parameters:
-  - `./run_all.sh [n] [runs] [warmup] [seed] [mode] [output]`
-- TypeScript (Bun runtime):
-  - `cd ts && bun run ou_bench.ts --n=500000 --runs=1000 --warmup=5 --seed=1`
-- Rust:
-  - `cd rust && cargo run --release -- --n=500000 --runs=1000 --warmup=5 --seed=1`
-  - Optional CPU tuning: `RUSTFLAGS="-C target-cpu=native" cargo run --release -- ...`
-- C (clang/gcc):
-  - `cd c && cc -O3 -march=native -std=c11 ou_bench.c -lm -o ou_bench_c`
-  - `./ou_bench_c --n=500000 --runs=1000 --warmup=5 --seed=1`
-- Zig:
-  - `cd zig && zig build-exe ou_bench.zig -O ReleaseFast -fstrip -femit-bin=ou_bench`
-  - `./ou_bench --n=500000 --runs=1000 --warmup=5 --seed=1`
-- Swift:
-  - `cd swift && swiftc -O -whole-module-optimization ou_bench.swift -o ou_bench_swift`
-  - `./ou_bench_swift --n=500000 --runs=1000 --warmup=5 --seed=1`
+## Required validation
 
-## Coding Style & Naming Conventions
+Write a failing E2E regression before a behavioral fix. Preserve the scalar
+reference; do not change expected results merely to match a new implementation.
 
-- Match existing style per language:
-  - TypeScript uses 2-space indentation and camelCase names.
-  - Rust/Zig/C use 4-space indentation and snake_case identifiers.
-- Keep algorithm steps and constants consistent across languages (PRNG, normal sampler, OU update).
-- No formatter/linter is configured; avoid stylistic rewrites that make cross-language diffs harder to compare.
+```bash
+python3 tests/check.py --scripts
+cargo fmt --manifest-path rust/Cargo.toml --check
+cargo clippy --manifest-path rust/Cargo.toml --locked --all-targets -- -D warnings
+cargo test --manifest-path rust/Cargo.toml --locked
+zig fmt --check zig/ou_bench.zig
+shellcheck build.sh run_all.sh DOCS/scripts/compare_runs.sh
+git diff --check
+```
 
-## Testing Guidelines
+Set `V` to the installed V executable when needed. Cargo test currently has no
+unit tests; the E2E suite supplies behavioral coverage. Use
+`--skip-build --bin-dir <directory> --languages ...` for sanitizer/safety artifacts.
+Changes to hot loops also need repeated before/after measurements using matching
+compiler policies and numeric checks first. Record unfavorable observations.
 
-- There are no automated tests. Validate changes by running the benchmarks and ensuring:
-  - Output fields remain consistent (N, runs, warmup, seed, timing breakdown, checksum).
-  - Checksums remain stable within each language build (cross-language checksums may differ).
+## Parity and review
 
-## Commit & Pull Request Guidelines
+Keep SplitMix32/xorshift128, 53-bit uniforms, polar acceptance/order/spare state,
+`dt=1/n`, Euler recurrence, and ordered checksum traversal aligned across all six
+implementations. Warmup must not change the timed random stream. Preserve mode
+semantics, output fields, buffer reuse, and timing boundaries.
 
-- The repository has no commit history yet, so no formal convention is established.
-- Use concise, imperative commit messages (e.g., "Align Zig RNG with Rust").
-- In PRs, describe:
-  - What changed and why it preserves algorithm parity.
-  - Any performance impact and how you measured it (command and parameters).
-  - If CLI flags or output format changed, update `README.md`.
+Per-language loop structure may differ when it preserves the numerical contract
+and measured evidence supports it. A different PRNG, sampler, exact OU transition,
+parallel execution, or reassociated reduction requires a separately named workload.
 
-## Benchmark Parity Checklist
+Reject malformed/unknown CLI input before allocation. Counts use the common
+signed-32-bit ceiling; seeds parse exactly as u64 before reduction. Do not use
+fast-math, Swift unchecked mode, or unchecked indexing to hide correctness failures.
+Zig ReleaseFast is the benchmark default; validate changed loops in ReleaseSafe too.
 
-- If you change the algorithm or parameters in one language, mirror it across all five implementations.
-- Keep allocation strategy and timing boundaries consistent with the README.
+Keep code readable and native to its language. Rust uses rustfmt; Zig uses zig fmt;
+V uses v fmt; Swift uses swift-format. Avoid unrelated formatting churn.
+Prefer safe iterators/slices and clear error paths. Add no dependencies for
+functionality already available in the standard libraries.
+
+Update affected docs and the changelog with visible changes. Preserve historical
+measurements as historical; new results need hardware, versions, flags, parameters,
+raw records, and limitations. Use Conventional Commits. Never assert a universal
+language ranking or a speedup from source inspection alone.

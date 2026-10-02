@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.4.0] - 2026-10-02
+
+### Fixed
+- Reject malformed, unknown, negative, and oversized CLI arguments consistently in all six languages; report errors instead of parser panics or silent coercion.
+- Parse the full unsigned 64-bit seed exactly in TypeScript before reducing to 32 bits.
+- Check C allocation-size arithmetic and clean up failed allocations; use fallible Rust reservation.
+- Migrate Zig to 0.16 process/I/O APIs and a monotonic elapsed clock; streaming stdout preserves concatenated results when redirected to a file.
+- Resolve runner paths from the script directory; emit clean JSON Lines and retain compiler diagnostics.
+- Reject incompatible parameters, duplicate/missing records, invalid timings, and checksum drift in the comparison helper.
+
+### Changed
+- Preserve the stochastic stream while tuning per-language normal generation and buffer access.
+- Use scoped Swift buffers with checked `-O`, preallocated TypeScript timing storage, and Rust fixed-size slice chunks and iterator traversal.
+- Remove default C/V fast-math and Swift unchecked optimization from the shared build policy.
+- Move new binaries to ignored `.scratch/bin`; retain the legacy tracked V binary as historical only.
+- Use Rust edition 2024 with a 1.88 language/API minimum; synchronize the Cargo package and project version.
+- Refresh every tutorial and project guide, add a V chapter, correct the time-grid explanation and unsupported performance/safety claims, and retain historical results as historical.
+
+### Added
+- Dependency-free CLI E2E coverage against a scalar numerical reference and negative controls.
+- Shared `build.sh`, `.zig-version`, and `VERSION`.
+- Dated raw measurements, toolchain metadata, decisions, and verification evidence in `DOCS/Run-Record-2026-10-02.md`.
+
+Earlier entries describe historical configurations and claims, not current verified rankings.
+
 ## [1.3.0] - 2025-12-25
 
 ### Added
