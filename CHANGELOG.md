@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- `CLAUDE.md` imports `AGENTS.md`; a link left the repository contract out of Claude Code's context.
+- `.claude/settings.json` (new): edits to the parity checker (`tests/check.py`) and to recorded results ask first; a
+  Stop hook runs `python3 tests/check.py --scripts` when the tree changed since the last green run.
+
 ## [1.4.0] - 2026-10-02
 
 ### Fixed

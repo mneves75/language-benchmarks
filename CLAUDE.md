@@ -1,6 +1,10 @@
 # Claude Code project guidance
 
-Read [AGENTS.md](AGENTS.md) for the repository contract. It is the authoritative
+Read the repository contract, imported here:
+
+@AGENTS.md
+
+It is the authoritative
 owner of parity rules, validation commands, source layout, and contribution guidance.
 
 Current version: **1.4.0**. This is a six-language scalar OU benchmark, not a mobile
